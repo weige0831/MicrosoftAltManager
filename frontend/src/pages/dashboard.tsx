@@ -35,37 +35,28 @@ export default function DashboardPage() {
     <SectionPageLayout>
       <SectionPageLayout.Title>{t("dashboard.title")}</SectionPageLayout.Title>
       <SectionPageLayout.Content>
-        <div className="space-y-6">
-          {/* Overview summary card */}
-          <div className="overflow-hidden rounded-2xl border bg-card shadow-xs">
-            <div className="flex flex-col gap-2.5 p-3 sm:gap-3 sm:p-5">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex flex-col gap-1">
-                  <h3 className="text-sm font-semibold sm:text-base">{t("dashboard.title")}</h3>
-                  <p className="text-xs text-muted-foreground sm:text-sm">{t("dashboard.desc")}</p>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
-                {cards.map((c) => {
-                  const tone = toneMap[c.tone];
-                  return (
-                    <div key={c.label} className="group relative flex flex-col justify-between gap-2 overflow-hidden rounded-lg border bg-background/60 p-2.5 transition-all hover:shadow-sm sm:rounded-xl sm:p-3.5">
-                      <div className={cn("absolute inset-x-0 top-0 h-1 bg-gradient-to-r", tone.bar)} />
-                      <div className="flex items-start justify-between gap-1">
-                        <div className={cn("grid size-8 shrink-0 place-items-center rounded-lg sm:size-9", tone.bg)}>
-                          <c.icon className={cn("size-4 sm:size-5", tone.text)} />
-                        </div>
-                      </div>
-                      <div className="font-mono text-xl font-semibold tabular-nums sm:text-2xl">{c.value}</div>
-                      <div className="line-clamp-2 text-[11px] text-muted-foreground sm:text-xs">{c.label}</div>
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
+            {cards.map((c) => {
+              const tone = toneMap[c.tone];
+              return (
+                <div
+                  key={c.label}
+                  className="group relative flex flex-col justify-between gap-2 overflow-hidden rounded-xl border bg-card p-3 shadow-xs transition-all hover:shadow-sm sm:p-4"
+                >
+                  <div className={cn("absolute inset-x-0 top-0 h-1 bg-gradient-to-r", tone.bar)} />
+                  <div className="flex items-start justify-between gap-1">
+                    <div className={cn("grid size-8 shrink-0 place-items-center rounded-lg sm:size-9", tone.bg)}>
+                      <c.icon className={cn("size-4 sm:size-5", tone.text)} />
                     </div>
-                  );
-                })}
-              </div>
-            </div>
+                  </div>
+                  <div className="font-mono text-xl font-semibold tabular-nums sm:text-2xl">{c.value}</div>
+                  <div className="line-clamp-2 text-[11px] text-muted-foreground sm:text-xs">{c.label}</div>
+                </div>
+              );
+            })}
           </div>
 
-          {/* cleanup policy */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">

@@ -216,14 +216,21 @@ export async function getStatus() {
   return res.data?.data as Record<string, unknown>
 }
 
-// Get system notice
+// Get system notice (backend may not implement this endpoint)
 export async function getNotice(): Promise<{
   success: boolean
   message?: string
   data?: string
 }> {
-  const res = await api.get('/api/notice')
-  return res.data
+  try {
+    const res = await api.get('/api/notice', {
+      skipErrorHandler: true,
+      skipBusinessError: true,
+    })
+    return res.data
+  } catch {
+    return { success: true, data: '' }
+  }
 }
 
 // ----------------------------------------------------------------------------

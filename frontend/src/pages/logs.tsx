@@ -55,7 +55,7 @@ export default function LogsPage() {
   };
 
   return (
-    <SectionPageLayout>
+    <SectionPageLayout fixedContent>
       <SectionPageLayout.Title>{t("logs.title")}</SectionPageLayout.Title>
       <SectionPageLayout.Actions>
         <Button variant="outline" size="sm" onClick={load} disabled={loading}>
@@ -63,9 +63,8 @@ export default function LogsPage() {
         </Button>
       </SectionPageLayout.Actions>
       <SectionPageLayout.Content>
-      <div className="space-y-4">
-
-      <div className="overflow-hidden rounded-xl border bg-card shadow-xs">
+      <div className="flex h-full min-h-0 flex-col gap-3">
+      <div className="min-h-0 flex-1 overflow-auto rounded-xl border bg-card shadow-xs">
         <Table>
           <TableHeader>
             <TableRow>
@@ -101,7 +100,7 @@ export default function LogsPage() {
         </Table>
       </div>
 
-      <div className="flex items-center justify-center gap-2">
+      <div className="flex shrink-0 items-center justify-center gap-2">
         <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>
           {t("common.prev")}
         </Button>

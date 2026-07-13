@@ -85,31 +85,30 @@ export default function AccountsPage() {
 
   const copy = (text: string) => {
     navigator.clipboard.writeText(text);
-    toast.success("已复制");
+    toast.success(t("Copied"));
   };
 
   return (
-    <SectionPageLayout>
-      <SectionPageLayout.Title></SectionPageLayout.Title>
+    <SectionPageLayout fixedContent>
+      <SectionPageLayout.Title>{t("accounts.title")}</SectionPageLayout.Title>
       <SectionPageLayout.Actions>
-          <Button variant="outline" size="sm" onClick={load} disabled={loading}>
-            <RefreshCw className={loading ? "size-4 animate-spin" : "size-4"} />
-            {t("action.refresh")}
-          </Button>
-          <Button variant="secondary" size="sm" onClick={() => setExtractOpen(true)}>
-            <Download className="size-4" />
-            {t("accounts.extractAccount")}
-          </Button>
-          <Button size="sm" onClick={() => setUploadOpen(true)}>
-            <Plus className="size-4" />
-            {t("accounts.uploadAccount")}
-          </Button>
+        <Button variant="outline" size="sm" onClick={load} disabled={loading}>
+          <RefreshCw className={loading ? "size-4 animate-spin" : "size-4"} />
+          {t("action.refresh")}
+        </Button>
+        <Button variant="secondary" size="sm" onClick={() => setExtractOpen(true)}>
+          <Download className="size-4" />
+          {t("accounts.extractAccount")}
+        </Button>
+        <Button size="sm" onClick={() => setUploadOpen(true)}>
+          <Plus className="size-4" />
+          {t("accounts.uploadAccount")}
+        </Button>
       </SectionPageLayout.Actions>
       <SectionPageLayout.Content>
-      <div className="space-y-4">
-
+      <div className="flex h-full min-h-0 flex-col gap-3">
       {/* filters */}
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex shrink-0 flex-wrap items-center gap-2">
         <Select value={status} onValueChange={(v) => { setStatus(v); setPage(1); }}>
           <SelectTrigger className="w-36">
             <SelectValue />
@@ -131,7 +130,7 @@ export default function AccountsPage() {
       </div>
 
       {/* table */}
-      <div className="overflow-hidden rounded-xl border bg-card shadow-xs">
+      <div className="min-h-0 flex-1 overflow-auto rounded-xl border bg-card shadow-xs">
         <Table>
           <TableHeader>
             <TableRow>
@@ -171,7 +170,7 @@ export default function AccountsPage() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      title="查看明文"
+                      title={t("accounts.viewPlaintext")}
                       onClick={async () => {
                         try {
                           setDetail(await API.accountDetail(a.id));
@@ -185,12 +184,12 @@ export default function AccountsPage() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      title="删除"
+                      title={t("action.delete")}
                       onClick={async () => {
-                        if (!confirm("确定删除该账号？")) return;
+                        if (!confirm(t("accounts.deleteConfirm"))) return;
                         try {
                           await API.deleteAccount(a.id);
-                          toast.success("已删除");
+                          toast.success(t("accounts.deleted"));
                           load();
                         } catch (e) {
                           toast.error((e as Error).message);
@@ -209,18 +208,18 @@ export default function AccountsPage() {
 
       {/* pagination */}
       {total > 20 && (
-        <div className="flex items-center justify-center gap-2">
+        <div className="flex shrink-0 items-center justify-center gap-2">
           <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>
-            上一页
+            {t("common.prev")}
           </Button>
-          <span className="text-sm text-muted-foreground">第 {page} 页</span>
+          <span className="text-sm text-muted-foreground">{t("common.page", { n: page })}</span>
           <Button
             variant="outline"
             size="sm"
             disabled={list.length < 20}
             onClick={() => setPage(page + 1)}
           >
-            下一页
+            {t("common.next")}
           </Button>
         </div>
       )}
@@ -232,13 +231,13 @@ export default function AccountsPage() {
       <Dialog open={!!detail} onOpenChange={(o) => !o && setDetail(null)}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>账号明文详情</DialogTitle>
-            <DialogDescription>敏感信息，请妥善保管</DialogDescription>
+            <DialogTitle>{t("accounts.detailTitle")}</DialogTitle>
+            <DialogDescription>{t("accounts.detailDesc")}</DialogDescription>
           </DialogHeader>
           {detail && (
             <div className="space-y-3 text-sm">
-              <Field label="用户名" value={detail.username} onCopy={copy} />
-              <Field label="密码" value={detail.password || "-"} onCopy={copy} mono />
+              <Field label={t("accounts.colUsername")} value={detail.username} onCopy={copy} />
+              <Field label={t("accounts.fieldPassword")} value={detail.password || "-"} onCopy={copy} mono />
               <Field label="Cookie" value={detail.cookie || "-"} onCopy={copy} mono multiline />
               {detail.refresh_tokens?.map((r, i) => (
                 <Field
@@ -251,8 +250,8 @@ export default function AccountsPage() {
                 />
               ))}
               <div className="flex justify-between rounded-md border p-2 text-xs text-muted-foreground">
-                <span>上传: {formatTime(detail.uploaded_at)}</span>
-                <span>提取: {formatTime(detail.used_at)}</span>
+                <span>{t("accounts.colUploadedAt")}: {formatTime(detail.uploaded_at)}</span>
+                <span>{t("accounts.colUsedAt")}: {formatTime(detail.used_at)}</span>
               </div>
             </div>
           )}

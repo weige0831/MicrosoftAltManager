@@ -33,7 +33,7 @@ export default function ApiKeysPage() {
   useEffect(() => { load(); }, []);
 
   return (
-    <SectionPageLayout>
+    <SectionPageLayout fixedContent>
       <SectionPageLayout.Title>{t("apikeys.title")}</SectionPageLayout.Title>
       <SectionPageLayout.Actions>
         <>
@@ -42,9 +42,8 @@ export default function ApiKeysPage() {
         </>
       </SectionPageLayout.Actions>
       <SectionPageLayout.Content>
-      <div className="space-y-4">
-
-      <div className="overflow-hidden rounded-xl border bg-card shadow-xs">
+      <div className="flex h-full min-h-0 flex-col">
+      <div className="min-h-0 flex-1 overflow-auto rounded-xl border bg-card shadow-xs">
         <Table>
           <TableHeader>
             <TableRow>
