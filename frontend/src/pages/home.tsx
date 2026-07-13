@@ -95,23 +95,23 @@ export default function HomePage() {
         <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 opacity-25 dark:opacity-[0.12]"
           style={{ background: "radial-gradient(ellipse 60% 50% at 20% 20%, oklch(0.72 0.18 250 / 80%) 0%, transparent 70%), radial-gradient(ellipse 50% 40% at 80% 15%, oklch(0.65 0.15 200 / 60%) 0%, transparent 70%)" }} />
         <div className="mx-auto max-w-6xl">
-          <div className="mb-5 inline-flex items-center gap-1.5 rounded-full border border-blue-500/20 bg-blue-500/5 px-3 py-1.5 text-[11px] font-medium text-blue-600 dark:text-blue-400">
+          <div className="landing-animate-fade-up mb-5 inline-flex items-center gap-1.5 rounded-full border border-blue-500/20 bg-blue-500/5 px-3 py-1.5 text-[11px] font-medium text-blue-600 dark:text-blue-400" style={{ animationDelay: '0ms' }}>
             <span className="relative flex size-1.5">
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-75" />
               <span className="relative inline-flex size-1.5 rounded-full bg-blue-500" />
             </span>
             {t("home.badge")}
           </div>
-          <h1 className="text-[clamp(2.25rem,4.5vw,3.25rem)] font-bold leading-[1.15] tracking-tight">
+          <h1 className="landing-animate-fade-up text-[clamp(2.25rem,4.5vw,3.25rem)] font-bold leading-[1.15] tracking-tight" style={{ animationDelay: '60ms' }}>
             {t("home.heroTitle1")}<br />
             <span className="bg-gradient-to-r from-blue-400 via-violet-400 to-purple-500 bg-clip-text text-transparent">
               {t("home.heroTitle2")}
             </span>
           </h1>
-          <p className="mt-5 max-w-xl text-base leading-relaxed text-muted-foreground/80 md:text-[15px]">
+          <p className="landing-animate-fade-up mt-5 max-w-xl text-base leading-relaxed text-muted-foreground/80 md:text-[15px]" style={{ animationDelay: '120ms' }}>
             {t("home.heroDesc")}
           </p>
-          <div className="mt-8 flex flex-wrap items-center gap-3">
+          <div className="landing-animate-fade-up mt-8 flex flex-wrap items-center gap-3" style={{ animationDelay: '180ms' }}>
             <Button className="group h-11 rounded-lg px-5 text-sm font-medium" onClick={() => nav(primaryTo)}>
               {primaryLabel}<ArrowRight className="ml-1.5 size-4 transition-transform group-hover:translate-x-0.5" />
             </Button>

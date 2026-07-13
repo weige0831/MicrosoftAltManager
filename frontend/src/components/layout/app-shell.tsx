@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import { NavLink } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
@@ -12,7 +12,6 @@ import {
 } from "@/components/ui/sidebar";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { ThemeSwitch } from "@/components/theme-switch";
-import { PageTransition } from "@/components/page-transition";
 import { SkipToMain } from "@/components/skip-to-main";
 import { useAuthStore } from "@/stores/auth-store";
 import { useUI } from "@/stores/ui-store";
@@ -24,6 +23,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { t } = useTranslation();
   const { auth } = useAuthStore();
   const setConfigOpen = useUI((s) => s.setConfigOpen);
+  const logout = () => { useAuthStore.getState().auth?.reset(); window.location.href = "/login"; };
 
   const nav = [
     { to: "/dashboard", label: t("nav.dashboard"), icon: LayoutDashboard },
@@ -33,12 +33,10 @@ export function AppShell({ children }: { children: ReactNode }) {
     { to: "/settings", label: t("nav.settings"), icon: SettingsIcon },
   ];
 
-  const logout = () => { useAuthStore.getState().auth?.reset(); window.location.href = "/login"; };
-
   return (
-    <SidebarProvider defaultOpen={true}>
+    <SidebarProvider className="flex-col">
       <SkipToMain />
-      {/* Full-width header above sidebar */}
+      {/* Full-width header (above sidebar — new-api/Vercel pattern) */}
       <header className="flex h-[var(--app-header-height,3rem)] shrink-0 items-center gap-2 border-b bg-background/80 px-2 backdrop-blur sm:px-3">
         <SidebarTrigger variant="ghost" className="size-8" />
         <div className="flex items-center gap-1.5">
@@ -67,6 +65,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
       </header>
 
+      {/* Sidebar + Content */}
       <div className="flex min-h-0 w-full flex-1">
         <Sidebar collapsible="icon">
           <SidebarHeader>
@@ -117,19 +116,15 @@ export function AppShell({ children }: { children: ReactNode }) {
           </SidebarFooter>
           <SidebarRail />
         </Sidebar>
-        <SidebarInset>
-          <PageTransition>
-            <main id="main-content" className="flex-1">
-              {children}
-            </main>
-          </PageTransition>
+        {/* SidebarInset renders its own <main> — DON'T nest another <main> */}
+        <SidebarInset className="h-[calc(100svh-var(--app-header-height,0px))] min-h-0 overflow-hidden">
+          {children}
         </SidebarInset>
       </div>
     </SidebarProvider>
   );
 }
 
-// Minimal SidebarGroup to avoid importing from new-api layout
 function SidebarGroup({ children }: { children: ReactNode }) {
   return <div className="px-2 py-2">{children}</div>;
 }
