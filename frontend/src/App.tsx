@@ -1,18 +1,14 @@
 import { useEffect, useState } from "react";
 import {
-  BrowserRouter,
-  Routes,
-  Route,
-  Navigate,
-  useLocation,
-  Outlet,
+  BrowserRouter, Routes, Route, Navigate, useLocation, Outlet,
 } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Loader2 } from "lucide-react";
 import { useAuthStore } from "@/stores/auth-store";
 import { API } from "@/lib/api";
 import { Toaster } from "@/components/ui/sonner";
-import { AuthenticatedLayout } from "@/components/layout";
+import { ConfigDialogHost } from "@/components/config-dialog";
+import { AppShell } from "@/components/layout/app-shell";
 import HomePage from "@/pages/home";
 import LoginPage from "@/pages/login";
 import SetupPage from "@/pages/setup";
@@ -23,16 +19,16 @@ import LogsPage from "@/pages/logs";
 import SettingsPage from "@/pages/settings";
 
 function Protected() {
-  const auth = useAuthStore();
+  const { auth } = useAuthStore();
   const loc = useLocation();
-  const [checking, setChecking] = useState(!auth.auth?.user);
+  const [checking, setChecking] = useState(!auth?.user);
 
   useEffect(() => {
-    if (auth.auth?.user) return;
+    if (auth?.user) return;
     let active = true;
     API.self()
-      .then((u) => { if (active && u) auth.auth?.setUser(u); })
-      .catch(() => { if (active) auth.auth?.reset(); })
+      .then((u) => { if (active && u) auth?.setUser(u); })
+      .catch(() => { if (active) auth?.reset(); })
       .finally(() => { if (active) setChecking(false); });
     return () => { active = false; };
   }, []);
@@ -44,14 +40,10 @@ function Protected() {
       </div>
     );
   }
-  if (!auth.auth?.user) {
+  if (!auth?.user) {
     return <Navigate to={`/login?redirect=${encodeURIComponent(loc.pathname)}`} replace />;
   }
-  return (
-    <AuthenticatedLayout>
-      <Outlet />
-    </AuthenticatedLayout>
-  );
+  return <AppShell><Outlet /></AppShell>;
 }
 
 export default function App() {
@@ -64,6 +56,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <Toaster />
+      <ConfigDialogHost />
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/setup" element={<SetupPage />} />
