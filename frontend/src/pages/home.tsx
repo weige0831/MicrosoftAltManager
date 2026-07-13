@@ -98,7 +98,7 @@ export default function HomePage() {
       {/* Floating morphing header (new-api pattern) */}
       <header className="pointer-events-none fixed inset-x-0 top-0 z-50">
         <div className={cn("pointer-events-auto mx-auto transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)]", scrolled ? "max-w-[52rem] px-3 pt-3" : "max-w-7xl px-4 md:px-6 pt-0")}>
-          <nav className={cn("flex items-center justify-between transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)]", scrolled ? "h-12 rounded-2xl border border-border/50 bg-background/60 pl-4 pr-1.5 shadow-[0_2px_16px_-6px_rgba(0,0,0,0.08)] ring-[0.5px] backdrop-blur-2xl dark:shadow-[0_2px_16px_-6px_rgba(0,0,0,0.4)]" : "h-16 px-2")}>
+          <nav className={cn("flex items-center justify-between transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)]", scrolled ? "h-12 rounded-2xl border border-border/50 bg-background/60 pl-4 pr-1.5 shadow-[0_2px_16px_-6px_rgba(0,0,0,0.08)] ring-1 ring-border/50 backdrop-blur-2xl dark:shadow-[0_2px_16px_-6px_rgba(0,0,0,0.4)]" : "h-16 px-2")}>
             <div className="flex shrink-0 items-center gap-2.5">
               <div className="grid size-7 place-items-center rounded-lg bg-primary text-primary-foreground">
                 <Boxes className="size-4" />

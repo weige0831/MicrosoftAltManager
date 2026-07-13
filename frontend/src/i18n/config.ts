@@ -44,20 +44,19 @@ i18n
   .use(initReactI18next)
   .init({
     resources,
-    fallbackLng: 'en',
-    supportedLngs: ['en', 'zhCN', 'fr', 'ru', 'ja', 'vi', 'zhTW'],
+    fallbackLng: 'zhCN',
+    supportedLngs: ['zhCN', 'en', 'fr', 'ru', 'ja', 'vi', 'zhTW'],
     load: 'currentOnly',
     nsSeparator: false,
     keySeparator: false,
     debug: import.meta.env.DEV,
     interpolation: {
-      escapeValue: false, // not needed for react as it escapes by default
+      escapeValue: false,
     },
     detection: {
       order: ['localStorage', 'navigator'],
       caches: ['localStorage'],
-      // Browsers report `zh-CN`/`zh-TW`/`zh`; map them onto our `zhCN`/`zhTW`
-      // codes (non-Chinese codes pass through for normal supportedLngs matching).
+      lookupLocalStorage: 'lang',
       convertDetectedLanguage,
     },
   })
