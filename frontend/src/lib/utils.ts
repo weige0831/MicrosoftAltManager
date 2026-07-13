@@ -100,3 +100,18 @@ export function tryPrettyJson(text: string): string {
     return raw
   }
 }
+
+
+export function relativeSeconds(s: number): string {
+  if (s < 60) return `${s} 秒`;
+  if (s < 3600) return `${Math.floor(s / 60)} 分钟`;
+  if (s < 86400) return `${Math.floor(s / 3600)} 小时`;
+  return `${Math.floor(s / 86400)} 天`;
+}
+
+export function formatTime(t?: string | null): string {
+  if (!t) return "-";
+  const d = new Date(t);
+  if (isNaN(d.getTime())) return "-";
+  return d.toLocaleString("zh-CN", { hour12: false });
+}
