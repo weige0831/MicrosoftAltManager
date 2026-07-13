@@ -138,8 +138,16 @@ function CreateKeyDialog({ open, onOpenChange, onCreated }: { open: boolean; onO
           </div>
           <div className="space-y-1.5">
             <Label>{t("apikeys.fieldPerms")}</Label>
-            <Select value={perms} onValueChange={setPerms}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+            <Select value={perms} onValueChange={(v) => setPerms(String(v))}>
+              <SelectTrigger>
+                <SelectValue>
+                  {perms === "upload"
+                    ? t("apikeys.permUpload")
+                    : perms === "upload,extract"
+                      ? t("apikeys.permBoth")
+                      : t("apikeys.permExtract")}
+                </SelectValue>
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="extract">{t("apikeys.permExtract")}</SelectItem>
                 <SelectItem value="upload">{t("apikeys.permUpload")}</SelectItem>

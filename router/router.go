@@ -42,10 +42,15 @@ func NewRouter(d Deps) *gin.Engine {
 	// setup gate: while first-run setup is pending, allow only setup endpoints
 	// and read-only status; reject all OTHER /api/* calls so the app cannot be
 	// used before initialization. Non-API paths (the SPA) always pass through.
+	// NOTE: must match "/api/" (or exact "/api"), NOT strings that merely start
+	// with "/api" — otherwise SPA routes like "/apikeys" get blocked.
+	isAPIPath := func(p string) bool {
+		return p == "/api" || len(p) >= 5 && p[:5] == "/api/"
+	}
 	setupGate := func(c *gin.Context) {
 		p := c.Request.URL.Path
 		// always let the SPA + static assets through
-		if len(p) < 4 || p[:4] != "/api" {
+		if !isAPIPath(p) {
 			c.Next()
 			return
 		}
@@ -123,7 +128,7 @@ func NewRouter(d Deps) *gin.Engine {
 
 	// SPA static files
 	r.NoRoute(func(c *gin.Context) {
-		if len(c.Request.URL.Path) >= 4 && c.Request.URL.Path[:4] == "/api" {
+		if isAPIPath(c.Request.URL.Path) {
 			c.JSON(http.StatusNotFound, gin.H{"success": false, "message": "not found"})
 			return
 		}

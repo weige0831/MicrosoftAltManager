@@ -109,9 +109,22 @@ export default function AccountsPage() {
       <div className="flex h-full min-h-0 flex-col gap-3">
       {/* filters */}
       <div className="flex shrink-0 flex-wrap items-center gap-2">
-        <Select value={status} onValueChange={(v) => { setStatus(v); setPage(1); }}>
+        <Select
+          value={status}
+          onValueChange={(v) => {
+            if (v == null) return
+            setStatus(String(v))
+            setPage(1)
+          }}
+        >
           <SelectTrigger className="w-36">
-            <SelectValue />
+            <SelectValue>
+              {status === "all"
+                ? t("accounts.allStatus")
+                : status === "0"
+                  ? t("accounts.statusAvailable")
+                  : t("accounts.statusUsed")}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">{t("accounts.allStatus")}</SelectItem>
@@ -126,7 +139,9 @@ export default function AccountsPage() {
           className="w-48"
           onKeyDown={(e) => e.key === "Enter" && setPage(1)}
         />
-        <span className="text-xs text-muted-foreground">{t("accounts.total", { n: total })}</span>
+        <span className="text-xs text-muted-foreground">
+          {t("accounts.total", { n: total })}
+        </span>
       </div>
 
       {/* table */}
