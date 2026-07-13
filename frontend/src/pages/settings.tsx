@@ -43,9 +43,7 @@ export default function SettingsPage() {
 
   return (
     <SectionPageLayout>
-      <SectionPageLayout.Title>
-        <h2 className="truncate text-base font-bold tracking-tight sm:text-lg">{t("settings.title")}</h2>
-      </SectionPageLayout.Title>
+      <SectionPageLayout.Title>{t("settings.title")}</SectionPageLayout.Title>
       <SectionPageLayout.Content>
       <div className="space-y-4">
 
@@ -59,14 +57,14 @@ export default function SettingsPage() {
               <Label>{t("settings.ttlAfterExtract")}</Label>
               <Input type="number" value={ttlExtract} onChange={(e) => setTtlExtract(e.target.value)} />
               <p className="text-xs text-muted-foreground">
-                {t("settings.ttlAfterExtractHint")} · {relativeSeconds(Number(ttlExtract) || 0)}
+                {t("settings.ttlAfterExtractHint")} 路 {relativeSeconds(Number(ttlExtract) || 0)}
               </p>
             </div>
             <div className="space-y-1.5">
               <Label>{t("settings.maxAgeUnused")}</Label>
               <Input type="number" value={maxUnused} onChange={(e) => setMaxUnused(e.target.value)} />
               <p className="text-xs text-muted-foreground">
-                {t("settings.maxAgeUnusedHint")} · {relativeSeconds(Number(maxUnused) || 0)}
+                {t("settings.maxAgeUnusedHint")} 路 {relativeSeconds(Number(maxUnused) || 0)}
               </p>
             </div>
           </CardContent>

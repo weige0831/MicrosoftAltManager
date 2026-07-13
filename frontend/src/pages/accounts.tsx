@@ -90,9 +90,7 @@ export default function AccountsPage() {
 
   return (
     <SectionPageLayout>
-      <SectionPageLayout.Title>
-        <h2 className="truncate text-base font-bold tracking-tight sm:text-lg">{t("accounts.title")}</h2>
-      </SectionPageLayout.Title>
+      <SectionPageLayout.Title></SectionPageLayout.Title>
       <SectionPageLayout.Actions>
           <Button variant="outline" size="sm" onClick={load} disabled={loading}>
             <RefreshCw className={loading ? "size-4 animate-spin" : "size-4"} />

@@ -38,6 +38,10 @@ const Toaster = (props: ToasterProps) => {
     <Sonner
       theme={resolvedTheme}
       className='toaster group'
+      position="top-center"
+      richColors
+      closeButton
+      duration={5000}
       icons={{
         success: (
           <HugeiconsIcon

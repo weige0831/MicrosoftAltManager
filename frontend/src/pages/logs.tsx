@@ -56,9 +56,7 @@ export default function LogsPage() {
 
   return (
     <SectionPageLayout>
-      <SectionPageLayout.Title>
-        <h2 className="truncate text-base font-bold tracking-tight sm:text-lg">{t("logs.title")}</h2>
-      </SectionPageLayout.Title>
+      <SectionPageLayout.Title>{t("logs.title")}</SectionPageLayout.Title>
       <SectionPageLayout.Actions>
         <Button variant="outline" size="sm" onClick={load} disabled={loading}>
           <RefreshCw className={loading ? "size-4 animate-spin" : "size-4"} />

@@ -18,6 +18,7 @@ interface LinkItem {
 export function PublicHeader({ needsSetup }: { needsSetup?: boolean }) {
   const { user } = useAuth();
   const { theme, setTheme } = useTheme();
+  const isDark = theme === "dark" || (theme === "system" && typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches);
   const { t } = useTranslation();
   const setConfigOpen = useUI((s) => s.setConfigOpen);
   const navigate = useNavigate();
@@ -102,11 +103,11 @@ export function PublicHeader({ needsSetup }: { needsSetup?: boolean }) {
 
               {/* theme switch */}
               <button
-                onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+                onClick={() => setTheme(isDark ? "light" : "dark")}
                 className="grid size-9 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                 title={t("theme.toggle")}
               >
-                {theme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
+                {isDark ? <Sun className="size-4" /> : <Moon className="size-4" />}
               </button>
 
               <div className="mx-1 h-4 w-px bg-border/40" />
@@ -123,10 +124,10 @@ export function PublicHeader({ needsSetup }: { needsSetup?: boolean }) {
             {/* Mobile */}
             <div className="flex items-center gap-2 sm:hidden">
               <button
-                onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+                onClick={() => setTheme(isDark ? "light" : "dark")}
                 className="grid size-9 place-items-center rounded-lg text-muted-foreground hover:bg-accent"
               >
-                {theme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
+                {isDark ? <Sun className="size-4" /> : <Moon className="size-4" />}
               </button>
               <button
                 type="button"

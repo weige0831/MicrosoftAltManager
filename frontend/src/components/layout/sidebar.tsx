@@ -15,7 +15,7 @@ export function Sidebar({ open }: { open: boolean }) {
   const { t } = useTranslation();
   const { theme, setTheme } = useTheme();
   const setConfigOpen = useUI((s) => s.setConfigOpen);
-  const isDark = theme === "dark";
+  const isDark = theme === "dark" || (theme === "system" && typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches);
 
   const nav = [
     { to: "/dashboard", label: t("nav.dashboard"), icon: LayoutDashboard },

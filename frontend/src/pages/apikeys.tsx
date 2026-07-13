@@ -34,9 +34,7 @@ export default function ApiKeysPage() {
 
   return (
     <SectionPageLayout>
-      <SectionPageLayout.Title>
-        <h2 className="truncate text-base font-bold tracking-tight sm:text-lg">{t("apikeys.title")}</h2>
-      </SectionPageLayout.Title>
+      <SectionPageLayout.Title>{t("apikeys.title")}</SectionPageLayout.Title>
       <SectionPageLayout.Actions>
         <>
           <Button variant="outline" size="sm" onClick={load}><RefreshCw className="size-4" /></Button>

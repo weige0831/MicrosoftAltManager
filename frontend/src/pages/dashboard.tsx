@@ -33,9 +33,7 @@ export default function DashboardPage() {
 
   return (
     <SectionPageLayout>
-      <SectionPageLayout.Title>
-        <h2 className="truncate text-base font-bold tracking-tight sm:text-lg">{t("dashboard.title")}</h2>
-      </SectionPageLayout.Title>
+      <SectionPageLayout.Title>{t("dashboard.title")}</SectionPageLayout.Title>
       <SectionPageLayout.Content>
         <div className="space-y-6">
           {/* Overview summary card */}
