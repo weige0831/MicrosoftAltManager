@@ -1,0 +1,1 @@
+const N=()=>null;export const OpenAI=N;export const Claude={Color:N};export const Gemini={Color:N};export const DeepSeek={Color:N};export const Qwen={Color:N};export const Doubao={Color:N};export const CherryStudio={Color:N};export default new Proxy({},{get:(_,p)=>p==="__esModule"?!0:N});

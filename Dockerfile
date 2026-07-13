@@ -1,5 +1,3 @@
-# syntax=docker/dockerfile:1
-# Frontend pre-built locally. Server only builds Go (avoids npm network issues).
 FROM golang:1.23-alpine AS backend
 ENV CGO_ENABLED=0 GOPROXY=https://goproxy.cn,direct GOSUMDB=off
 WORKDIR /app

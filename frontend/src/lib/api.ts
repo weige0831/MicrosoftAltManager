@@ -1,88 +1,266 @@
-import axios from "axios";
+/*
+Copyright (C) 2023-2026 QuantumNous
 
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+import axios, { type AxiosRequestConfig } from 'axios'
+import { t } from 'i18next'
+import { toast } from 'sonner'
+
+import { useAuthStore } from '@/stores/auth-store'
+
+declare module 'axios' {
+  export interface AxiosRequestConfig {
+    skipBusinessError?: boolean
+    skipErrorHandler?: boolean
+    disableDuplicate?: boolean
+  }
+}
+
+export type ApiRequestConfig = AxiosRequestConfig
+
+// ============================================================================
+// Axios Instance Configuration
+// ============================================================================
+
+// Base URL: empty string for same-origin API requests
+const baseURL = ''
+
+// Create axios instance with default config
 export const api = axios.create({
-  baseURL: "",
-  withCredentials: true,
-  headers: { "Cache-Control": "no-store" },
-});
+  baseURL,
+  withCredentials: true, // Include cookies in cross-origin requests
+  headers: {
+    'Cache-Control': 'no-store', // Prevent caching
+  },
+})
 
+// ============================================================================
+// Request Deduplication
+// ============================================================================
+
+// Deduplicate concurrent GET requests to the same URL
+// Prevents multiple identical requests from being sent simultaneously
+const inFlightGet = new Map<string, Promise<unknown>>()
+const originalGet = api.get.bind(api)
+
+api.get = ((url: string, config: ApiRequestConfig = {}) => {
+  const disableDuplicate = config.disableDuplicate
+  if (disableDuplicate) return originalGet(url, config)
+
+  const params = config.params ? JSON.stringify(config.params) : '{}'
+  const key = `${url}?${params}`
+
+  // Return existing in-flight request if available
+  if (inFlightGet.has(key)) return inFlightGet.get(key)!
+
+  // Create new request and clean up after completion
+  const req = originalGet(url, config).finally(() => inFlightGet.delete(key))
+  inFlightGet.set(key, req)
+  return req
+}) as typeof api.get
+
+// ============================================================================
+// Response Interceptor
+// ============================================================================
+
+// Handle business logic errors and HTTP errors globally
 api.interceptors.response.use(
-  (res) => res,
-  (err) => {
-    if (err.response?.status === 401) {
-      // redirect to login if not already there
-      if (!window.location.pathname.startsWith("/login")) {
-        const redirect = encodeURIComponent(window.location.pathname + window.location.search);
-        window.location.href = `/login?redirect=${redirect}`;
+  (response) => {
+    const skipBusiness = response.config.skipBusinessError
+
+    // Unified business response format: { success, message, data }
+    if (
+      !skipBusiness &&
+      response &&
+      response.data &&
+      typeof response.data.success === 'boolean'
+    ) {
+      if (!response.data.success) {
+        // Show error toast for business failures
+        const msg = response.data.message || t('Request failed')
+        toast.error(msg)
       }
     }
-    const msg = err.response?.data?.message || err.message || "请求失败";
-    return Promise.reject(new Error(msg));
+    return response
   },
-);
+  (error) => {
+    const skip = error?.config?.skipErrorHandler
+    const status = error?.response?.status
 
-// ---- types ----
-export interface Envelope<T> {
-  success: boolean;
-  message?: string;
-  data?: T;
-}
-export interface AccountListItem {
-  id: number;
-  username: string;
-  remark: string;
-  status: 0 | 1;
-  uploaded_at: string;
-  used_at?: string | null;
-  uploaded_by: string;
-  extracted_by?: string;
-  password_set: boolean;
-  cookie_set: boolean;
-  refresh_set: boolean;
-}
-export interface Paged<T> {
-  items: T[];
-  total: number;
-  page: number;
-  pages: number;
-}
-export interface AccountDetail {
-  id: number;
-  username: string;
-  password?: string;
-  cookie?: string;
-  refresh_tokens?: { app_name: string; refresh_token: string }[];
-  remark?: string;
-  uploaded_at: string;
-  used_at?: string | null;
-}
-export interface ExtractedAccount extends AccountDetail {}
-export interface ApiKey {
-  id: number;
-  name: string;
-  key_prefix: string;
-  enabled: boolean;
-  quota: number;
-  used_count: number;
-  last_used_at?: string | null;
-  permissions: string;
-  created_at: string;
-}
-export interface Stats {
-  available: number;
-  used: number;
-  today_upload: number;
-  expiring_soon: number;
-  ttl_after_extract: number;
-  max_age_unused: number;
+    if (status === 401) {
+      try {
+        useAuthStore.getState().auth.reset()
+      } catch {
+        /* empty */
+      }
+
+      if (!skip) {
+        toast.error(t('Session expired!'))
+      }
+    } else if (!skip) {
+      // Other errors: show error message from response or default
+      const msg =
+        error?.response?.data?.message || error?.message || t('Request failed')
+      toast.error(msg)
+    }
+    return Promise.reject(error)
+  }
+)
+
+// ============================================================================
+// Common Headers Utility
+// ============================================================================
+
+/**
+ * Get user ID from localStorage
+ */
+function getUserId(): string | null {
+  try {
+    if (typeof window !== 'undefined') {
+      return window.localStorage.getItem('uid')
+    }
+  } catch {
+    /* empty */
+  }
+  return null
 }
 
-async function unwrap<T>(p: Promise<{ data: Envelope<T> }>): Promise<T> {
-  const res = await p;
-  if (!res.data.success) throw new Error(res.data.message || "操作失败");
-  return res.data.data as T;
+/**
+ * Get common request headers (for both axios and SSE requests)
+ */
+export function getCommonHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  }
+
+  const uid = getUserId()
+  if (uid) {
+    headers['New-Api-User'] = uid
+  }
+
+  return headers
 }
 
+// ============================================================================
+// Request Interceptor
+// ============================================================================
+
+// Attach user ID header for all requests
+api.interceptors.request.use((config) => {
+  const uid = getUserId()
+  if (uid) {
+    // Custom header for user identification
+    ;(config.headers as Record<string, string>)['New-Api-User'] = uid
+  }
+  return config
+})
+
+// ============================================================================
+// Common API Functions
+// ============================================================================
+
+// ----------------------------------------------------------------------------
+// User APIs
+// ----------------------------------------------------------------------------
+
+// Get current user info
+export async function getSelf() {
+  const res = await api.get('/api/user/self', {
+    // Avoid global 401 toast during guards/preloads
+    skipErrorHandler: true,
+  })
+  return res.data
+}
+
+// Get user available models
+export async function getUserModels(): Promise<{
+  success: boolean
+  message?: string
+  data?: string[]
+}> {
+  const res = await api.get('/api/user/models')
+  return res.data
+}
+
+// Get user groups with descriptions and ratios
+export async function getUserGroups(): Promise<{
+  success: boolean
+  message?: string
+  data?: Record<string, { desc: string; ratio: number | string }>
+}> {
+  const res = await api.get('/api/user/self/groups')
+  return res.data
+}
+
+// ----------------------------------------------------------------------------
+// System APIs
+// ----------------------------------------------------------------------------
+
+// Get system status
+export async function getStatus() {
+  const res = await api.get('/api/status')
+  return res.data?.data as Record<string, unknown>
+}
+
+// Get system notice
+export async function getNotice(): Promise<{
+  success: boolean
+  message?: string
+  data?: string
+}> {
+  const res = await api.get('/api/notice')
+  return res.data
+}
+
+// ----------------------------------------------------------------------------
+// 2FA Management APIs
+// ----------------------------------------------------------------------------
+
+// Get 2FA status
+export async function get2FAStatus() {
+  const res = await api.get('/api/user/2fa/status')
+  return res.data
+}
+
+// Setup 2FA
+export async function setup2FA() {
+  const res = await api.post('/api/user/2fa/setup')
+  return res.data
+}
+
+// Enable 2FA with verification code
+export async function enable2FA(code: string) {
+  const res = await api.post('/api/user/2fa/enable', { code })
+  return res.data
+}
+
+// Disable 2FA with verification code
+export async function disable2FA(code: string) {
+  const res = await api.post('/api/user/2fa/disable', { code })
+  return res.data
+}
+
+// Regenerate 2FA backup codes
+export async function regenerate2FABackupCodes(code: string) {
+  const res = await api.post('/api/user/2fa/backup_codes', { code })
+  return res.data
+}
+
+// === MicrosoftAltManager custom endpoints ===
 export const API = {
   setupStatus: () =>
     unwrap<{ needs_setup: boolean }>(api.get("/api/setup/status")),
