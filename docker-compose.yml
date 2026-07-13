@@ -1,0 +1,45 @@
+services:
+  app:
+    build: .
+    image: msm:latest
+    container_name: msm-app
+    restart: unless-stopped
+    ports:
+      - "0.0.0.0:27321:27321"   # direct IP:port access from public
+    environment:
+      PORT: "27321"
+      DATABASE_URL: "host=postgres port=5432 user=msmgr password=${POSTGRES_PASSWORD:-msmgr_change_me} dbname=msmgr sslmode=disable"
+      MASTER_KEY: "${MASTER_KEY:-change_me_master_key_32_bytes}"
+      SESSION_SECRET: "${SESSION_SECRET:-change_me_session_secret}"
+      TZ: Asia/Shanghai
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [msm-net]
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: msm-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: msmgr
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-msmgr_change_me}
+      POSTGRES_DB: msmgr
+    volumes:
+      - ./data/pg:/var/lib/postgresql/data
+    # conservative for low-RAM host (~1.2G free)
+    command: >
+      postgres
+      -c shared_buffers=128MB
+      -c max_connections=50
+      -c work_mem=4MB
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U msmgr -d msmgr"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [msm-net]
+
+networks:
+  msm-net:
+    driver: bridge

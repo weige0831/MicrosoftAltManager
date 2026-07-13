@@ -1,0 +1,111 @@
+import { useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
+import { Boxes, Loader2, LogIn } from "lucide-react";
+import { API } from "@/lib/api";
+import { useAuth } from "@/stores/auth-store";
+import { toast } from "@/components/ui/sonner";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+
+export default function LoginPage() {
+  const nav = useNavigate();
+  const [params] = useSearchParams();
+  const { t } = useTranslation();
+  const setUser = useAuth((s) => s.setUser);
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      const u = await API.login(username, password);
+      setUser(u);
+      toast.success(t("login.success"));
+      nav(params.get("redirect") || "/dashboard", { replace: true });
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="grid min-h-screen lg:grid-cols-2">
+      {/* Brand panel */}
+      <div className="relative hidden flex-col justify-between overflow-hidden bg-primary p-12 text-primary-foreground lg:flex">
+        <div
+          className="pointer-events-none absolute inset-0 opacity-30"
+          style={{
+            background:
+              "radial-gradient(60% 60% at 30% 20%, white 0%, transparent 60%), radial-gradient(50% 50% at 80% 80%, white 0%, transparent 60%)",
+          }}
+        />
+        <div className="relative flex items-center gap-2 text-lg font-semibold">
+          <div className="grid size-9 place-items-center rounded-md bg-primary-foreground/15">
+            <Boxes className="size-5" />
+          </div>
+          {t("appName")}
+        </div>
+        <div className="relative space-y-3">
+          <h2 className="whitespace-pre-line text-3xl font-bold leading-tight">
+            {t("login.brandTitle")}
+          </h2>
+          <p className="max-w-sm text-primary-foreground/80">{t("login.brandDesc")}</p>
+        </div>
+        <div className="relative text-xs text-primary-foreground/60">
+          © {new Date().getFullYear()} weige0831 · MicrosoftAltManager
+        </div>
+      </div>
+
+      {/* Form panel */}
+      <div className="flex items-center justify-center bg-background p-6">
+        <div className="w-full max-w-sm">
+          <div className="mb-8 space-y-2">
+            <div className="flex items-center gap-2 lg:hidden">
+              <div className="grid size-9 place-items-center rounded-md bg-primary text-primary-foreground">
+                <Boxes className="size-5" />
+              </div>
+            </div>
+            <h1 className="text-2xl font-semibold tracking-tight">
+              <LogIn className="mr-2 inline size-5 text-primary" />
+              {t("login.title")}
+            </h1>
+            <p className="text-sm text-muted-foreground">{t("login.description")}</p>
+          </div>
+          <form onSubmit={submit} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="u">{t("login.username")}</Label>
+              <Input
+                id="u"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                autoComplete="username"
+                autoFocus
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="p">{t("login.password")}</Label>
+              <Input
+                id="p"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                autoComplete="current-password"
+                required
+              />
+            </div>
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading && <Loader2 className="size-4 animate-spin" />}
+              {t("login.submit")}
+            </Button>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+}
