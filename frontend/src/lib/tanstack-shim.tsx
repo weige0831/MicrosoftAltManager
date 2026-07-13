@@ -81,9 +81,11 @@ export function useParams<T = any>(): T {
 
 export function useRouterState(opts?: { select?: (s: any) => any }) {
   const loc = useLocation();
+  // Key page transitions by first path segment so param-only changes stay stable
+  const routeId = "/" + (loc.pathname.split("/").filter(Boolean)[0] || "");
   const state = {
     location: { pathname: loc.pathname, href: loc.href, search: loc.search },
-    matches: [{ routeId: loc.pathname }],
+    matches: [{ routeId: routeId || loc.pathname }],
   };
   return opts?.select ? opts.select(state) : (state as any);
 }

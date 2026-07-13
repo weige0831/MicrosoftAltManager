@@ -72,11 +72,8 @@ function Protected() {
   if (!auth?.user) {
     return <Navigate to={`/login?redirect=${encodeURIComponent(loc.pathname)}`} replace />;
   }
-  return (
-    <AuthenticatedLayout>
-      <Outlet />
-    </AuthenticatedLayout>
-  );
+  // No children → AuthenticatedLayout uses AnimatedOutlet (page enter motion)
+  return <AuthenticatedLayout />;
 }
 
 export default function App() {
