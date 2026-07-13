@@ -261,6 +261,37 @@ export async function regenerate2FABackupCodes(code: string) {
 }
 
 // === MicrosoftAltManager custom endpoints ===
+
+// unwrap: strip {success,message,data} envelope, return data directly
+async function unwrap<T>(p: Promise<{ data: { success: boolean; message?: string; data?: T } }>): Promise<T> {
+  const res = await p;
+  if (!res.data.success) throw new Error(res.data.message || "Request failed");
+  return res.data.data as T;
+}
+
+// types
+interface Paged<T> { items: T[]; total: number; page: number; pages: number; }
+interface AccountListItem {
+  id: number; username: string; remark: string; status: 0 | 1;
+  uploaded_at: string; used_at?: string | null; uploaded_by: string; extracted_by?: string;
+  password_set: boolean; cookie_set: boolean; refresh_set: boolean;
+}
+interface AccountDetail {
+  id: number; username: string; password?: string; cookie?: string;
+  refresh_tokens?: { app_name: string; refresh_token: string }[];
+  remark?: string; uploaded_at: string; used_at?: string | null;
+}
+interface ExtractedAccount extends AccountDetail {}
+interface ApiKey {
+  id: number; name: string; key_prefix: string; enabled: boolean;
+  quota: number; used_count: number; last_used_at?: string | null;
+  permissions: string; created_at: string;
+}
+interface Stats {
+  available: number; used: number; today_upload: number; expiring_soon: number;
+  ttl_after_extract: number; max_age_unused: number;
+}
+
 export const API = {
   setupStatus: () =>
     unwrap<{ needs_setup: boolean }>(api.get("/api/setup/status")),
