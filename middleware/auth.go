@@ -33,6 +33,9 @@ func (s *Service) Login(c *gin.Context, username, password string) (*model.User,
 	if err := s.db.Where("username = ?", username).First(&u).Error; err != nil {
 		return nil, errInvalid()
 	}
+	if u.Status != model.UserStatusEnabled {
+		return nil, errDisabled()
+	}
 	if err := bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte(password)); err != nil {
 		return nil, errInvalid()
 	}
@@ -46,9 +49,6 @@ func (s *Service) Login(c *gin.Context, username, password string) (*model.User,
 	if err := s.db.Create(&sess).Error; err != nil {
 		return nil, err
 	}
-	// Secure flag must only be set when actually serving over HTTPS.
-	// Over plain HTTP (e.g. direct IP:port access) a Secure cookie is rejected
-	// by the browser, which silently drops the session -> login "doesn't stick".
 	secure := isHTTPS(c.Request)
 	c.SetSameSite(http.SameSiteLaxMode)
 	c.SetCookie(SessionCookie, tok, int(SessionTTL.Seconds()), "/", "", secure, true)
@@ -86,11 +86,22 @@ func (s *Service) CurrentUser(c *gin.Context) *model.User {
 	if err := s.db.First(&u, sess.UserID).Error; err != nil {
 		return nil
 	}
+	if u.Status != model.UserStatusEnabled {
+		return nil
+	}
 	c.Set("user", &u)
 	return &u
 }
 
-// RequireSession middleware: allow only logged-in admin.
+// ActorLabel returns a stable actor string for audit logs.
+func ActorLabel(u *model.User) string {
+	if u == nil {
+		return "anonymous"
+	}
+	return u.Username
+}
+
+// RequireSession middleware: allow only logged-in users.
 func (s *Service) RequireSession() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if s.CurrentUser(c) == nil {
@@ -101,8 +112,23 @@ func (s *Service) RequireSession() gin.HandlerFunc {
 	}
 }
 
+// RequireRole requires session user role >= minRole.
+func (s *Service) RequireRole(minRole int) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		u := s.CurrentUser(c)
+		if u == nil {
+			common.Fail(c, http.StatusUnauthorized, "未登录或会话已过期")
+			return
+		}
+		if u.Role < minRole {
+			common.Fail(c, http.StatusForbidden, "权限不足")
+			return
+		}
+		c.Next()
+	}
+}
+
 // VerifyApiKey resolves an API key from the Authorization header.
-// Returns the api key row + actor label, or nil.
 func (s *Service) VerifyApiKey(c *gin.Context, wantPerm string) (*model.ApiKey, string) {
 	raw := extractBearer(c)
 	if raw == "" {
@@ -113,6 +139,10 @@ func (s *Service) VerifyApiKey(c *gin.Context, wantPerm string) (*model.ApiKey, 
 	for i := range keys {
 		if bcrypt.CompareHashAndPassword([]byte(keys[i].KeyHash), []byte(raw)) == nil {
 			if !hasPerm(keys[i].Permissions, wantPerm) {
+				return &keys[i], ""
+			}
+			// quota enforcement: 0 = unlimited
+			if keys[i].Quota > 0 && keys[i].UsedCount >= keys[i].Quota {
 				return &keys[i], ""
 			}
 			now := s.now()
@@ -132,9 +162,8 @@ func (s *Service) VerifyApiKey(c *gin.Context, wantPerm string) (*model.ApiKey, 
 // RequireAnyAuth allows EITHER a valid session OR an api key with the permission.
 func (s *Service) RequireAnyAuth(perm string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// session first
-		if s.CurrentUser(c) != nil {
-			c.Set("actor", "admin")
+		if u := s.CurrentUser(c); u != nil {
+			c.Set("actor", ActorLabel(u))
 			c.Next()
 			return
 		}
@@ -144,6 +173,10 @@ func (s *Service) RequireAnyAuth(perm string) gin.HandlerFunc {
 			return
 		}
 		if actor == "" {
+			if key.Quota > 0 && key.UsedCount >= key.Quota {
+				common.Fail(c, http.StatusForbidden, "该 API Key 已达配额上限")
+				return
+			}
 			common.Fail(c, http.StatusForbidden, "该 API Key 无 "+perm+" 权限")
 			return
 		}
@@ -152,8 +185,6 @@ func (s *Service) RequireAnyAuth(perm string) gin.HandlerFunc {
 		c.Next()
 	}
 }
-
-// --- helpers ---
 
 func hasPerm(perms, want string) bool {
 	if perms == "" {
@@ -176,13 +207,6 @@ func extractBearer(c *gin.Context) string {
 	return strings.TrimSpace(h)
 }
 
-func isLocalhost(r *http.Request) bool {
-	host := r.Host
-	return strings.Contains(host, "localhost") || strings.Contains(host, "127.0.0.1")
-}
-
-// isHTTPS reports whether the request is effectively HTTPS, either directly
-// (TLS) or behind a reverse proxy that forwarded X-Forwarded-Proto: https.
 func isHTTPS(r *http.Request) bool {
 	if r.TLS != nil {
 		return true
@@ -193,8 +217,13 @@ func isHTTPS(r *http.Request) bool {
 	return false
 }
 
-func errInvalid() error { return &invalidCreds{} }
+func errInvalid() error  { return &invalidCreds{} }
+func errDisabled() error { return &disabledUser{} }
 
 type invalidCreds struct{}
 
 func (e *invalidCreds) Error() string { return "用户名或密码错误" }
+
+type disabledUser struct{}
+
+func (e *disabledUser) Error() string { return "账号已被禁用" }

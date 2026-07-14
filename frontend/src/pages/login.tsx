@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Boxes, Loader2, LogIn } from "lucide-react";
-import { API } from "@/lib/api";
+import { API, type AuthSelf } from "@/lib/api";
 import { useAuthStore, type AuthUser } from "@/stores/auth-store";
 import { ROLE } from "@/lib/roles";
 import { toast } from "sonner";
@@ -10,18 +10,20 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-function toAuthUser(u: { id: number; username: string; role?: string | number }): AuthUser {
+function toAuthUser(u: AuthSelf): AuthUser {
   const role =
     typeof u.role === "number"
       ? u.role
-      : String(u.role || "").toLowerCase() === "admin"
+      : String((u as any).role || "").toLowerCase() === "admin"
         ? ROLE.SUPER_ADMIN
         : ROLE.USER;
   return {
     id: u.id,
     username: u.username,
     role,
-    display_name: u.username,
+    display_name: u.display_name || u.username,
+    email: u.email,
+    status: u.status,
   };
 }
 

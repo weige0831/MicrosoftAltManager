@@ -7,28 +7,41 @@ import (
 
 // AccountStatus constants.
 const (
-	AccountAvailable = 0 // 未被提取
-	AccountUsed      = 1 // 已被提取（倒计时中）
+	AccountAvailable = 0
+	AccountUsed      = 1
 )
 
-// Account is the core Microsoft account record.
+// Role values aligned with new-api / frontend ROLE.
+const (
+	RoleUser       = 1
+	RoleAdmin      = 10
+	RoleSuperAdmin = 100
+)
+
+// User status.
+const (
+	UserStatusDisabled = 0
+	UserStatusEnabled  = 1
+)
+
+// Account is the core Microsoft account record (shared pool).
 type Account struct {
-	ID            int64          `gorm:"primaryKey;autoIncrement" json:"id"`
-	Username      string         `gorm:"size:255;not null;index" json:"username"`
-	PasswordEnc   string         `gorm:"type:text;not null;column:password_enc" json:"-"` // AES, never serialized
-	PasswordSet   bool           `gorm:"not null;default:true" json:"password_set"`
-	CookieEnc     string         `gorm:"type:text;not null" json:"-"`
-	CookieSet     bool           `gorm:"not null;default:true" json:"cookie_set"`
-	RefreshEnc    string         `gorm:"type:text" json:"-"` // AES(JSON), optional
-	RefreshSet    bool           `gorm:"not null;default:false" json:"refresh_set"`
-	Remark        string         `gorm:"size:255" json:"remark"`
-	Status        int            `gorm:"not null;default:0;index" json:"status"`
-	UploadedAt    time.Time      `gorm:"not null;index" json:"uploaded_at"`
-	UsedAt        *time.Time     `json:"used_at,omitempty"`
-	UploadedBy    string         `gorm:"size:64" json:"uploaded_by"`
-	ExtractedBy   string         `gorm:"size:64" json:"extracted_by,omitempty"`
-	CreatedAt     time.Time      `json:"created_at"`
-	UpdatedAt     time.Time      `json:"updated_at"`
+	ID          int64      `gorm:"primaryKey;autoIncrement" json:"id"`
+	Username    string     `gorm:"size:255;not null;index" json:"username"`
+	PasswordEnc string     `gorm:"type:text;not null;column:password_enc" json:"-"`
+	PasswordSet bool       `gorm:"not null;default:true" json:"password_set"`
+	CookieEnc   string     `gorm:"type:text;not null" json:"-"`
+	CookieSet   bool       `gorm:"not null;default:true" json:"cookie_set"`
+	RefreshEnc  string     `gorm:"type:text" json:"-"`
+	RefreshSet  bool       `gorm:"not null;default:false" json:"refresh_set"`
+	Remark      string     `gorm:"size:255" json:"remark"`
+	Status      int        `gorm:"not null;default:0;index" json:"status"`
+	UploadedAt  time.Time  `gorm:"not null;index" json:"uploaded_at"`
+	UsedAt      *time.Time `json:"used_at,omitempty"`
+	UploadedBy  string     `gorm:"size:64" json:"uploaded_by"`
+	ExtractedBy string     `gorm:"size:64" json:"extracted_by,omitempty"`
+	CreatedAt   time.Time  `json:"created_at"`
+	UpdatedAt   time.Time  `json:"updated_at"`
 }
 
 func (Account) TableName() string { return "accounts" }
@@ -39,7 +52,6 @@ type RefreshToken struct {
 	RefreshToken string `json:"refresh_token"`
 }
 
-// EncodeRefreshTokens serializes a token list to JSON string.
 func EncodeRefreshTokens(ts []RefreshToken) (string, error) {
 	if len(ts) == 0 {
 		return "", nil
@@ -51,7 +63,6 @@ func EncodeRefreshTokens(ts []RefreshToken) (string, error) {
 	return string(b), nil
 }
 
-// DecodeRefreshTokens parses a JSON string back to token list.
 func DecodeRefreshTokens(s string) ([]RefreshToken, error) {
 	if s == "" {
 		return nil, nil
@@ -65,27 +76,32 @@ func DecodeRefreshTokens(s string) ([]RefreshToken, error) {
 
 // ApiKey is a token used for upload/extract without a browser session.
 type ApiKey struct {
-	ID         int64       `gorm:"primaryKey;autoIncrement" json:"id"`
-	Name       string      `gorm:"size:128" json:"name"`
-	KeyHash    string      `gorm:"size:255;uniqueIndex;not null" json:"-"`
-	KeyPrefix  string      `gorm:"size:16" json:"key_prefix"` // first chars for display
-	Enabled    bool        `gorm:"not null;default:true" json:"enabled"`
-	Quota      int         `gorm:"not null;default:0" json:"quota"` // 0 = unlimited
-	UsedCount  int         `gorm:"not null;default:0" json:"used_count"`
-	LastUsedAt *time.Time  `json:"last_used_at,omitempty"`
-	Permissions string     `gorm:"size:64;default:'extract'" json:"permissions"` // comma sep: upload,extract
-	CreatedAt  time.Time   `json:"created_at"`
-	UpdatedAt  time.Time   `json:"updated_at"`
+	ID          int64      `gorm:"primaryKey;autoIncrement" json:"id"`
+	Name        string     `gorm:"size:128" json:"name"`
+	KeyHash     string     `gorm:"size:255;uniqueIndex;not null" json:"-"`
+	KeyPrefix   string     `gorm:"size:16" json:"key_prefix"`
+	Enabled     bool       `gorm:"not null;default:true" json:"enabled"`
+	Quota       int        `gorm:"not null;default:0" json:"quota"`
+	UsedCount   int        `gorm:"not null;default:0" json:"used_count"`
+	LastUsedAt  *time.Time `json:"last_used_at,omitempty"`
+	Permissions string     `gorm:"size:64;default:'extract'" json:"permissions"`
+	CreatedBy   int64      `gorm:"index;default:0" json:"created_by"`
+	CreatedAt   time.Time  `json:"created_at"`
+	UpdatedAt   time.Time  `json:"updated_at"`
 }
 
 func (ApiKey) TableName() string { return "api_keys" }
 
-// User is an admin login.
+// User is a console login (multi-user, new-api role numbers).
 type User struct {
 	ID           int64     `gorm:"primaryKey;autoIncrement" json:"id"`
 	Username     string    `gorm:"size:64;uniqueIndex;not null" json:"username"`
 	PasswordHash string    `gorm:"size:255;not null" json:"-"`
-	Role         string    `gorm:"size:16;default:'admin'" json:"role"`
+	DisplayName  string    `gorm:"size:128" json:"display_name"`
+	Email        string    `gorm:"size:255" json:"email"`
+	Role         int       `gorm:"not null;default:1;index" json:"role"`
+	Status       int       `gorm:"not null;default:1;index" json:"status"`
+	Remark       string    `gorm:"size:255" json:"remark"`
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
 }
@@ -121,3 +137,24 @@ type OpLog struct {
 }
 
 func (OpLog) TableName() string { return "op_logs" }
+
+// PublicUser is the safe user payload for frontend AuthUser.
+func PublicUser(u *User) map[string]any {
+	if u == nil {
+		return nil
+	}
+	dn := u.DisplayName
+	if dn == "" {
+		dn = u.Username
+	}
+	return map[string]any{
+		"id":           u.ID,
+		"username":     u.Username,
+		"display_name": dn,
+		"email":        u.Email,
+		"role":         u.Role,
+		"status":       u.Status,
+		"remark":       u.Remark,
+		"created_at":   u.CreatedAt,
+	}
+}

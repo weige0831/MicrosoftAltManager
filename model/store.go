@@ -14,9 +14,8 @@ import (
 
 // Open opens the database per cfg and runs AutoMigrate + seeding.
 func Open(cfg *common.Config) (*gorm.DB, error) {
-	gormLogLevel := logger.Warn
 	gcfg := &gorm.Config{
-		Logger:                 logger.Default.LogMode(gormLogLevel),
+		Logger:                 logger.Default.LogMode(logger.Warn),
 		SkipDefaultTransaction: true,
 		PrepareStmt:            true,
 	}
@@ -37,7 +36,7 @@ func Open(cfg *common.Config) (*gorm.DB, error) {
 		return nil, err
 	}
 	if cfg.UseSqlite {
-		sqlDB.SetMaxOpenConns(1) // sqlite single-writer
+		sqlDB.SetMaxOpenConns(1)
 	} else {
 		sqlDB.SetMaxOpenConns(50)
 		sqlDB.SetMaxIdleConns(10)
@@ -45,6 +44,9 @@ func Open(cfg *common.Config) (*gorm.DB, error) {
 	}
 
 	if cfg.AutoMigrate {
+		// Convert legacy string role column before AutoMigrate when possible.
+		migrateRoleColumn(db, cfg.UseSqlite)
+
 		if err := db.AutoMigrate(
 			&Account{}, &ApiKey{}, &User{},
 			&Session{}, &Setting{}, &OpLog{},
@@ -54,21 +56,65 @@ func Open(cfg *common.Config) (*gorm.DB, error) {
 		if err := seed(db); err != nil {
 			log.Printf("[store] seed warning: %v", err)
 		}
+		if err := ensureUserDefaults(db); err != nil {
+			log.Printf("[store] user defaults warning: %v", err)
+		}
 	}
 	return db, nil
 }
 
-// defaultSettings returns the seed settings.
+func migrateRoleColumn(db *gorm.DB, sqlite bool) {
+	if sqlite {
+		// SQLite type affinity is loose; AutoMigrate is enough.
+		return
+	}
+	// PostgreSQL: if role is still text/varchar, convert to int with mapping.
+	var dataType string
+	err := db.Raw(`
+		SELECT data_type FROM information_schema.columns
+		WHERE table_name = 'users' AND column_name = 'role'
+	`).Scan(&dataType).Error
+	if err != nil || dataType == "" {
+		return
+	}
+	if dataType == "integer" || dataType == "bigint" || dataType == "smallint" {
+		return
+	}
+	log.Printf("[store] converting users.role from %s to integer", dataType)
+	_ = db.Exec(`
+		ALTER TABLE users
+		ALTER COLUMN role TYPE integer
+		USING CASE
+			WHEN lower(role::text) IN ('admin','root','super','super_admin','100') THEN 100
+			WHEN lower(role::text) IN ('administrator','mod','10') THEN 10
+			WHEN role ~ '^[0-9]+$' THEN role::integer
+			ELSE 1
+		END
+	`).Error
+	// ensure status column exists as int
+	_ = db.Exec(`
+		ALTER TABLE users ADD COLUMN IF NOT EXISTS display_name varchar(128) DEFAULT '';
+		ALTER TABLE users ADD COLUMN IF NOT EXISTS email varchar(255) DEFAULT '';
+		ALTER TABLE users ADD COLUMN IF NOT EXISTS status integer DEFAULT 1;
+		ALTER TABLE users ADD COLUMN IF NOT EXISTS remark varchar(255) DEFAULT '';
+	`).Error
+}
+
 func defaultSettings() map[string]string {
 	return map[string]string{
-		"ttl_after_extract": "86400",   // 1 day after extraction
-		"max_age_unused":    "2592000", // 30 days after upload if never extracted
-		"brand_name":        "微软账号管理器",
+		"ttl_after_extract":         "86400",
+		"max_age_unused":            "2592000",
+		"brand_name":                "微软账号管理器",
+		"system_name":               "微软账号管理器",
+		"logo":                      "",
+		"footer_html":               "",
+		"notice":                    "",
+		"register_enabled":          "false",
+		"password_login_enabled":    "true",
+		"password_register_enabled": "false",
 	}
 }
 
-// seed ensures default settings only. The admin account is created via the
-// first-run setup wizard (/api/setup), NOT seeded here.
 func seed(db *gorm.DB) error {
 	defs := defaultSettings()
 	for k, v := range defs {
@@ -79,7 +125,63 @@ func seed(db *gorm.DB) error {
 	return nil
 }
 
-// NeedsSetup reports whether no admin user exists yet (first-run setup pending).
+func ensureUserDefaults(db *gorm.DB) error {
+	var users []User
+	if err := db.Find(&users).Error; err != nil {
+		return err
+	}
+	if len(users) == 0 {
+		return nil
+	}
+
+	allZero := true
+	for _, u := range users {
+		if u.Role > 0 {
+			allZero = false
+			break
+		}
+	}
+
+	for i, u := range users {
+		updates := map[string]any{}
+		if allZero {
+			if i == 0 {
+				updates["role"] = RoleSuperAdmin
+			} else {
+				updates["role"] = RoleUser
+			}
+		} else if u.Role == 0 {
+			updates["role"] = RoleUser
+		}
+		// Existing installs never used status; treat 0 as enabled once.
+		if u.Status == 0 {
+			updates["status"] = UserStatusEnabled
+		}
+		if u.DisplayName == "" {
+			updates["display_name"] = u.Username
+		}
+		if len(updates) > 0 {
+			if err := db.Model(&User{}).Where("id = ?", u.ID).Updates(updates).Error; err != nil {
+				return err
+			}
+		}
+	}
+
+	var superCnt int64
+	db.Model(&User{}).Where("role >= ?", RoleSuperAdmin).Count(&superCnt)
+	if superCnt == 0 {
+		var first User
+		if err := db.Order("id ASC").First(&first).Error; err == nil {
+			_ = db.Model(&first).Updates(map[string]any{
+				"role":   RoleSuperAdmin,
+				"status": UserStatusEnabled,
+			}).Error
+		}
+	}
+	return nil
+}
+
+// NeedsSetup reports whether no user exists yet.
 func NeedsSetup(db *gorm.DB) bool {
 	var cnt int64
 	db.Model(&User{}).Count(&cnt)

@@ -20,7 +20,13 @@ func (h *SettingsHandler) Public(c *gin.Context) {
 }
 
 func (h *SettingsHandler) Get(c *gin.Context) {
-	common.OK(c, h.Settings.All())
+	all := h.Settings.All()
+	// enrich with first super admin username for UI
+	var admin model.User
+	if err := h.DB.Where("role >= ?", model.RoleSuperAdmin).Order("id ASC").First(&admin).Error; err == nil {
+		all["admin_username"] = admin.Username
+	}
+	common.OK(c, all)
 }
 
 func (h *SettingsHandler) Update(c *gin.Context) {
@@ -29,23 +35,28 @@ func (h *SettingsHandler) Update(c *gin.Context) {
 		common.Fail(c, http.StatusBadRequest, "参数错误")
 		return
 	}
-	// whitelist editable keys
-	allowed := map[string]bool{
-		"ttl_after_extract": true,
-		"max_age_unused":    true,
-		"brand_name":        true,
-		"notice":            true,
-	}
 	for k, v := range body {
-		if !allowed[k] {
+		if !service.EditableKeys[k] {
 			continue
 		}
 		if err := h.Settings.Set(k, v); err != nil {
 			common.Fail(c, http.StatusInternalServerError, "保存失败")
 			return
 		}
+		// keep brand/system names in sync when one is updated
+		if k == "brand_name" && body["system_name"] == "" {
+			_ = h.Settings.Set("system_name", v)
+		}
+		if k == "system_name" && body["brand_name"] == "" {
+			_ = h.Settings.Set("brand_name", v)
+		}
 	}
-	common.OKMsg(c, "已保存", h.Settings.All())
+	all := h.Settings.All()
+	var admin model.User
+	if err := h.DB.Where("role >= ?", model.RoleSuperAdmin).Order("id ASC").First(&admin).Error; err == nil {
+		all["admin_username"] = admin.Username
+	}
+	common.OKMsg(c, "已保存", all)
 }
 
 type LogsHandler struct {

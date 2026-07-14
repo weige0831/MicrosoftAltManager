@@ -21,7 +21,6 @@ func (h *SetupHandler) Status(c *gin.Context) {
 }
 
 // Create POST /api/setup  { username, password }
-// Only works before any admin exists (first-run).
 func (h *SetupHandler) Create(c *gin.Context) {
 	var req struct {
 		Username string `json:"username" binding:"required"`
@@ -44,7 +43,6 @@ func (h *SetupHandler) Create(c *gin.Context) {
 		common.Fail(c, http.StatusForbidden, "系统已初始化，请直接登录")
 		return
 	}
-	// ensure username not taken
 	var cnt int64
 	h.DB.Model(&model.User{}).Where("username = ?", req.Username).Count(&cnt)
 	if cnt > 0 {
@@ -56,11 +54,17 @@ func (h *SetupHandler) Create(c *gin.Context) {
 		common.Fail(c, http.StatusInternalServerError, "初始化失败")
 		return
 	}
-	u := &model.User{Username: req.Username, PasswordHash: string(hash), Role: "admin"}
+	u := &model.User{
+		Username:     req.Username,
+		PasswordHash: string(hash),
+		DisplayName:  req.Username,
+		Role:         model.RoleSuperAdmin,
+		Status:       model.UserStatusEnabled,
+	}
 	if err := h.DB.Create(u).Error; err != nil {
 		common.Fail(c, http.StatusInternalServerError, "创建失败: "+err.Error())
 		return
 	}
-	_ = h.DB.Create(&model.OpLog{Action: "setup.create", Actor: req.Username, Detail: "initial admin"}).Error
+	_ = h.DB.Create(&model.OpLog{Action: "setup.create", Actor: req.Username, Detail: "initial super admin"}).Error
 	common.OKMsg(c, "初始化完成，请登录", gin.H{"username": u.Username})
 }

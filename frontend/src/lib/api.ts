@@ -299,20 +299,42 @@ interface Stats {
   ttl_after_extract: number; max_age_unused: number;
 }
 
+export type AuthSelf = {
+  id: number
+  username: string
+  role: number
+  display_name?: string
+  email?: string
+  status?: number
+  remark?: string
+  created_at?: string
+}
+
+export type ManagedUser = AuthSelf
+
 export const API = {
   setupStatus: () =>
     unwrap<{ needs_setup: boolean }>(api.get("/api/setup/status")),
   setup: (username: string, password: string) =>
     unwrap<{ username: string }>(api.post("/api/setup", { username, password })),
   login: (username: string, password: string) =>
-    unwrap<{ id: number; username: string; role: string }>(
-      api.post("/api/auth/login", { username, password }),
-    ),
+    unwrap<AuthSelf>(api.post("/api/auth/login", { username, password })),
   logout: () => unwrap(api.post("/api/auth/logout")),
   self: () =>
-    unwrap<{ id: number; username: string; role: string } | null>(
+    unwrap<AuthSelf | null>(
       api.get("/api/user/self").catch(() => ({ data: { success: true, data: null } })),
     ),
+  updateSelf: (body: Record<string, unknown>) =>
+    unwrap<AuthSelf>(api.put("/api/user/self", body)),
+  register: (body: Record<string, unknown>) =>
+    unwrap<AuthSelf>(api.post("/api/user/register", body)),
+  users: (params: Record<string, unknown>) =>
+    unwrap<Paged<ManagedUser>>(api.get("/api/users", { params })),
+  createUser: (body: Record<string, unknown>) =>
+    unwrap<ManagedUser>(api.post("/api/users", body)),
+  updateUser: (id: number, body: Record<string, unknown>) =>
+    unwrap<ManagedUser>(api.put(`/api/users/${id}`, body)),
+  deleteUser: (id: number) => unwrap(api.delete(`/api/users/${id}`)),
   accounts: (params: Record<string, unknown>) =>
     unwrap<Paged<AccountListItem>>(api.get("/api/accounts", { params })),
   accountDetail: (id: number) =>

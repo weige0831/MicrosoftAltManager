@@ -5,11 +5,11 @@ import (
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	"github.com/weige0831/microsoftaltmanager/common"
 	"github.com/weige0831/microsoftaltmanager/controller"
 	"github.com/weige0831/microsoftaltmanager/middleware"
-	"github.com/weige0831/microsoftaltmanager/service"
 	"github.com/weige0831/microsoftaltmanager/model"
-	"github.com/weige0831/microsoftaltmanager/common"
+	"github.com/weige0831/microsoftaltmanager/service"
 	"gorm.io/gorm"
 )
 
@@ -35,29 +35,23 @@ func NewRouter(d Deps) *gin.Engine {
 	setupH := &controller.SetupHandler{DB: d.DB}
 	acctH := &controller.AccountHandler{DB: d.DB, Cipher: d.Accounts.Cipher, Accounts: d.Accounts, Settings: d.Settings}
 	keyH := &controller.APIKeyHandler{DB: d.DB}
-	authH := &controller.AuthHandler{Auth: d.Auth}
+	authH := &controller.AuthHandler{Auth: d.Auth, DB: d.DB, Settings: d.Settings}
 	setH := &controller.SettingsHandler{DB: d.DB, Settings: d.Settings}
 	logH := &controller.LogsHandler{DB: d.DB}
+	userH := &controller.UserHandler{DB: d.DB, Auth: d.Auth}
 
-	// setup gate: while first-run setup is pending, allow only setup endpoints
-	// and read-only status; reject all OTHER /api/* calls so the app cannot be
-	// used before initialization. Non-API paths (the SPA) always pass through.
-	// NOTE: must match "/api/" (or exact "/api"), NOT strings that merely start
-	// with "/api" — otherwise SPA routes like "/apikeys" get blocked.
 	isAPIPath := func(p string) bool {
 		return p == "/api" || len(p) >= 5 && p[:5] == "/api/"
 	}
 	setupGate := func(c *gin.Context) {
 		p := c.Request.URL.Path
-		// always let the SPA + static assets through
 		if !isAPIPath(p) {
 			c.Next()
 			return
 		}
-		// allowed during setup
-		if p == "/api/setup" || p == "/api/setup/status" ||
-			p == "/api/status" || p == "/api/settings" ||
-			p == "/api/notice" {
+		switch p {
+		case "/api/setup", "/api/setup/status", "/api/status", "/api/settings", "/api/notice",
+			"/api/user/login", "/api/auth/login", "/api/user/register":
 			c.Next()
 			return
 		}
@@ -75,24 +69,13 @@ func NewRouter(d Deps) *gin.Engine {
 
 	api := r.Group("/api")
 	{
-		// public (no auth) — mirrors new-api /api/status shape
+		// public
 		api.GET("/status", func(c *gin.Context) {
 			c.JSON(200, gin.H{
 				"success": true,
-				"data": gin.H{
-					"version":                common.Version,
-					"commit_hash":            common.CommitHash,
-					"system_name":            d.Settings.Get("brand_name", "微软账号管理器"),
-					"brand_name":             d.Settings.Get("brand_name", "微软账号管理器"),
-					"logo":                   "",
-					"needs_setup":            model.NeedsSetup(d.DB),
-					"setup":                  !model.NeedsSetup(d.DB),
-					"announcements_enabled":  false,
-					"announcements":          []any{},
-				},
+				"data":    d.Settings.StatusPayload(model.NeedsSetup(d.DB)),
 			})
 		})
-		// new-api compatible notice endpoint (empty until settings support it)
 		api.GET("/notice", func(c *gin.Context) {
 			c.JSON(200, gin.H{
 				"success": true,
@@ -104,19 +87,21 @@ func NewRouter(d Deps) *gin.Engine {
 		api.GET("/setup/status", setupH.Status)
 		api.POST("/setup", setupH.Create)
 
-		// auth — new-api compatible routes + my own
+		// auth
 		api.POST("/auth/login", authH.Login)
-		api.POST("/user/login", authH.Login) // new-api alias
+		api.POST("/user/login", authH.Login)
+		api.POST("/user/register", authH.Register)
 		api.POST("/auth/logout", d.Auth.RequireSession(), authH.Logout)
-		api.POST("/user/logout", d.Auth.RequireSession(), authH.Logout) // new-api alias
+		api.POST("/user/logout", d.Auth.RequireSession(), authH.Logout)
 		api.GET("/user/self", d.Auth.RequireSession(), authH.Self)
+		api.PUT("/user/self", d.Auth.RequireSession(), authH.UpdateSelf)
 
-		// account: upload + extract need auth (session OR apikey with perm)
+		// account: session or apikey
 		api.POST("/account", d.Auth.RequireAnyAuth("upload"), acctH.Upload)
 		api.POST("/account/batch", d.Auth.RequireAnyAuth("upload"), acctH.UploadBatch)
 		api.POST("/account/extract", d.Auth.RequireAnyAuth("extract"), acctH.Extract)
 
-		// account management: session only
+		// session-only management
 		secure := d.Auth.RequireSession()
 		g := api.Group("", secure)
 		{
@@ -130,14 +115,22 @@ func NewRouter(d Deps) *gin.Engine {
 			g.PUT("/api-keys/:id", keyH.Update)
 			g.DELETE("/api-keys/:id", keyH.Delete)
 
-			g.GET("/settings/all", setH.Get)
-			g.PUT("/settings", setH.Update)
+			g.GET("/settings/all", d.Auth.RequireRole(model.RoleAdmin), setH.Get)
+			g.PUT("/settings", d.Auth.RequireRole(model.RoleAdmin), setH.Update)
 
-			g.GET("/logs", logH.List)
+			g.GET("/logs", d.Auth.RequireRole(model.RoleAdmin), logH.List)
+
+			// multi-user admin
+			admin := g.Group("", d.Auth.RequireRole(model.RoleAdmin))
+			{
+				admin.GET("/users", userH.List)
+				admin.POST("/users", userH.Create)
+				admin.PUT("/users/:id", userH.Update)
+				admin.DELETE("/users/:id", userH.Delete)
+			}
 		}
 	}
 
-	// SPA static files
 	r.NoRoute(func(c *gin.Context) {
 		if isAPIPath(c.Request.URL.Path) {
 			c.JSON(http.StatusNotFound, gin.H{"success": false, "message": "not found"})

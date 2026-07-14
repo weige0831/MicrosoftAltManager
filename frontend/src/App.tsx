@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
 import {
-  BrowserRouter, Routes, Route, Navigate, useLocation, Outlet,
+  BrowserRouter, Routes, Route, Navigate, useLocation,
 } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Loader2 } from "lucide-react";
 import { useAuthStore, type AuthUser } from "@/stores/auth-store";
-import { API } from "@/lib/api";
+import { API, type AuthSelf } from "@/lib/api";
 import { ROLE } from "@/lib/roles";
 import { Toaster } from "@/components/ui/sonner";
 import { AuthenticatedLayout } from "@/components/layout/components/authenticated-layout";
@@ -18,20 +18,23 @@ import AccountsPage from "@/pages/accounts";
 import ApiKeysPage from "@/pages/apikeys";
 import LogsPage from "@/pages/logs";
 import SettingsPage from "@/pages/settings";
+import UsersPage from "@/pages/users";
 
-function normalizeUser(u: { id: number; username: string; role?: string | number } | null): AuthUser | null {
+function toAuthUser(u: AuthSelf | null): AuthUser | null {
   if (!u) return null;
   const role =
     typeof u.role === "number"
       ? u.role
-      : String(u.role || "").toLowerCase() === "admin"
+      : String((u as any).role || "").toLowerCase() === "admin"
         ? ROLE.SUPER_ADMIN
         : ROLE.USER;
   return {
     id: u.id,
     username: u.username,
     role,
-    display_name: u.username,
+    display_name: u.display_name || u.username,
+    email: u.email,
+    status: u.status,
   };
 }
 
@@ -42,14 +45,15 @@ function Protected() {
 
   useEffect(() => {
     let active = true;
-    // Normalize any legacy localStorage shape (role as string)
     if (auth?.user) {
-      const n = normalizeUser(auth.user as any);
-      if (n && n.role !== auth.user.role) auth.setUser(n);
+      const n = toAuthUser(auth.user as any);
+      if (n && (n.role !== auth.user.role || n.display_name !== auth.user.display_name)) {
+        auth.setUser(n);
+      }
     }
     API.self()
       .then((u) => {
-        if (active) auth?.setUser(normalizeUser(u));
+        if (active) auth?.setUser(toAuthUser(u));
       })
       .catch(() => {
         if (active && !auth?.user) auth?.reset();
@@ -72,7 +76,6 @@ function Protected() {
   if (!auth?.user) {
     return <Navigate to={`/login?redirect=${encodeURIComponent(loc.pathname)}`} replace />;
   }
-  // No children → AuthenticatedLayout uses AnimatedOutlet (page enter motion)
   return <AuthenticatedLayout />;
 }
 
@@ -96,6 +99,7 @@ export default function App() {
             <Route path="/accounts" element={<AccountsPage />} />
             <Route path="/apikeys" element={<ApiKeysPage />} />
             <Route path="/logs" element={<LogsPage />} />
+            <Route path="/users" element={<UsersPage />} />
             <Route path="/settings" element={<SettingsPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
