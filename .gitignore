@@ -13,9 +13,10 @@
 /frontend/node_modules/
 /frontend/dist/
 /frontend/.rsbuild/
+/frontend/.vite/
+/frontend/src.mine/
+/frontend/package.json.new
 node_modules/
-
-# common/dist (pre-built for deploy)
 
 # Env / data / secrets
 .env
@@ -30,7 +31,20 @@ node_modules/
 .vscode/
 .DS_Store
 Thumbs.db
+*.swp
+*.swo
 
-# Temp
+# Temp / caches / logs
 *.tar
 *.tar.gz
+*.log
+*.tmp
+*.bak
+*.old
+.cache/
+tmp/
+temp/
+__pycache__/
+
+# Local build artifacts (deploy uses common/dist intentionally)
+/frontend/src/**/*.map
