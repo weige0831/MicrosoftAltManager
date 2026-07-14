@@ -34,6 +34,7 @@ func (h *SettingsHandler) Update(c *gin.Context) {
 		"ttl_after_extract": true,
 		"max_age_unused":    true,
 		"brand_name":        true,
+		"notice":            true,
 	}
 	for k, v := range body {
 		if !allowed[k] {

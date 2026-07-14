@@ -56,7 +56,8 @@ func NewRouter(d Deps) *gin.Engine {
 		}
 		// allowed during setup
 		if p == "/api/setup" || p == "/api/setup/status" ||
-			p == "/api/status" || p == "/api/settings" {
+			p == "/api/status" || p == "/api/settings" ||
+			p == "/api/notice" {
 			c.Next()
 			return
 		}
@@ -79,14 +80,24 @@ func NewRouter(d Deps) *gin.Engine {
 			c.JSON(200, gin.H{
 				"success": true,
 				"data": gin.H{
-					"version":       common.Version,
-					"commit_hash":   common.CommitHash,
-					"system_name":   d.Settings.Get("brand_name", "微软账号管理器"),
-					"brand_name":    d.Settings.Get("brand_name", "微软账号管理器"),
-					"logo":          "",
-					"needs_setup":   model.NeedsSetup(d.DB),
-					"setup":         !model.NeedsSetup(d.DB),
+					"version":                common.Version,
+					"commit_hash":            common.CommitHash,
+					"system_name":            d.Settings.Get("brand_name", "微软账号管理器"),
+					"brand_name":             d.Settings.Get("brand_name", "微软账号管理器"),
+					"logo":                   "",
+					"needs_setup":            model.NeedsSetup(d.DB),
+					"setup":                  !model.NeedsSetup(d.DB),
+					"announcements_enabled":  false,
+					"announcements":          []any{},
 				},
+			})
+		})
+		// new-api compatible notice endpoint (empty until settings support it)
+		api.GET("/notice", func(c *gin.Context) {
+			c.JSON(200, gin.H{
+				"success": true,
+				"message": "",
+				"data":    d.Settings.Get("notice", ""),
 			})
 		})
 		api.GET("/settings", setH.Public)
