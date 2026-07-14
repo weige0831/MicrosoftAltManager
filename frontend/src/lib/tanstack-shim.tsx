@@ -103,7 +103,21 @@ export function redirect(opts: { to: string; search?: any }) {
   return { type: "redirect", ...opts };
 }
 export function useRouter() {
-  return { navigate: useNavigate() };
+  const navigate = useNavigate();
+  return {
+    navigate,
+    history: {
+      go: (n: number) => {
+        if (typeof window !== "undefined") window.history.go(n);
+      },
+      back: () => {
+        if (typeof window !== "undefined") window.history.back();
+      },
+      forward: () => {
+        if (typeof window !== "undefined") window.history.forward();
+      },
+    },
+  };
 }
 export function createRootRouteWithContext<T>(_ctx: T) {
   return (o: any) => o;

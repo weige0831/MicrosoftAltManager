@@ -11,6 +11,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { NavigationProgress } from "@/components/navigation-progress";
 import { AuthenticatedLayout } from "@/components/layout/components/authenticated-layout";
 import { DirectionProvider } from "@/context/direction-provider";
+import { useSystemConfig } from "@/hooks/use-system-config";
 import HomePage from "@/pages/home";
 import LoginPage from "@/pages/login";
 import RegisterPage from "@/pages/register";
@@ -22,6 +23,7 @@ import LogsPage from "@/pages/logs";
 import SettingsPage from "@/pages/settings";
 import ProfilePage from "@/pages/profile";
 import UsersPage from "@/pages/users";
+import NotFoundPage from "@/pages/not-found";
 
 function toAuthUser(u: AuthSelf | null): AuthUser | null {
   if (!u) return null;
@@ -39,6 +41,28 @@ function toAuthUser(u: AuthSelf | null): AuthUser | null {
     email: u.email,
     status: u.status,
   };
+}
+
+/** Bootstrap system config + title/favicon for all routes (public + auth). */
+function SystemBootstrap() {
+  const { i18n, t } = useTranslation();
+  const { systemName } = useSystemConfig({ autoLoad: true });
+  const location = useLocation();
+
+  useEffect(() => {
+    document.documentElement.lang = i18n.resolvedLanguage || i18n.language || "zhCN";
+  }, [i18n.language, i18n.resolvedLanguage]);
+
+  useEffect(() => {
+    document.title = systemName || t("appName");
+  }, [systemName, t, i18n.language]);
+
+  // Scroll to top on route change (public pages / long content)
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "instant" as ScrollBehavior });
+  }, [location.pathname]);
+
+  return null;
 }
 
 function Protected() {
@@ -82,7 +106,6 @@ function Protected() {
   return <AuthenticatedLayout />;
 }
 
-/** Admin-only pages: logs / users / settings */
 function AdminOnly({ children }: { children?: ReactNode }) {
   const user = useAuthStore((s) => s.auth.user);
   if (!isAdmin(user?.role)) {
@@ -92,15 +115,10 @@ function AdminOnly({ children }: { children?: ReactNode }) {
 }
 
 export default function App() {
-  const { i18n, t } = useTranslation();
-  useEffect(() => {
-    document.documentElement.lang = i18n.resolvedLanguage || i18n.language || "zhCN";
-    document.title = t("appName");
-  }, [i18n.language, i18n.resolvedLanguage, t]);
-
   return (
     <DirectionProvider>
       <BrowserRouter>
+        <SystemBootstrap />
         <NavigationProgress />
         <Toaster closeButton duration={5000} position="top-center" richColors />
         <Routes>
@@ -119,7 +137,7 @@ export default function App() {
               <Route path="/settings" element={<SettingsPage />} />
             </Route>
           </Route>
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </BrowserRouter>
     </DirectionProvider>
