@@ -86,11 +86,13 @@ export default function ProfilePage() {
   };
 
   const changeLang = async (v: string) => {
-    setLang(v);
-    await i18n.changeLanguage(v);
+    const next = String(v);
+    setLang(next);
+    await i18n.changeLanguage(next);
     try {
-      localStorage.setItem("lang", v);
+      localStorage.setItem("lang", next);
     } catch { /* empty */ }
+    document.documentElement.lang = next === "zhCN" ? "zh-CN" : next === "zhTW" ? "zh-TW" : next;
     toast.success(t("settings.saved"));
   };
 

@@ -12,6 +12,7 @@ import { NavigationProgress } from "@/components/navigation-progress";
 import { AuthenticatedLayout } from "@/components/layout/components/authenticated-layout";
 import { DirectionProvider } from "@/context/direction-provider";
 import { useSystemConfig } from "@/hooks/use-system-config";
+import { normalizeInterfaceLanguage, toIntlLocale } from "@/i18n/languages";
 import HomePage from "@/pages/home";
 import LoginPage from "@/pages/login";
 import RegisterPage from "@/pages/register";
@@ -48,14 +49,24 @@ function SystemBootstrap() {
   const { i18n, t } = useTranslation();
   const { systemName } = useSystemConfig({ autoLoad: true });
   const location = useLocation();
+  const lang = normalizeInterfaceLanguage(
+    i18n.resolvedLanguage || i18n.language || "zhCN",
+  );
 
   useEffect(() => {
-    document.documentElement.lang = i18n.resolvedLanguage || i18n.language || "zhCN";
-  }, [i18n.language, i18n.resolvedLanguage]);
+    // Prefer BCP-47 for html lang attribute
+    document.documentElement.lang = toIntlLocale(lang) || lang;
+    try {
+      localStorage.setItem("lang", lang);
+    } catch {
+      /* empty */
+    }
+  }, [lang]);
 
   useEffect(() => {
+    // Re-resolve title when language changes (appName is localized)
     document.title = systemName || t("appName");
-  }, [systemName, t, i18n.language]);
+  }, [systemName, t, lang]);
 
   // Scroll to top on route change (public pages / long content)
   useEffect(() => {

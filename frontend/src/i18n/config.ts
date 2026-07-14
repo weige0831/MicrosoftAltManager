@@ -44,11 +44,21 @@ i18n
   .use(initReactI18next)
   .init({
     resources,
-    fallbackLng: 'zhCN',
+    fallbackLng: {
+      zhTW: ['zhCN', 'en'],
+      ja: ['en', 'zhCN'],
+      fr: ['en', 'zhCN'],
+      ru: ['en', 'zhCN'],
+      vi: ['en', 'zhCN'],
+      default: ['zhCN', 'en'],
+    },
     supportedLngs: ['zhCN', 'en', 'fr', 'ru', 'ja', 'vi', 'zhTW'],
+    nonExplicitSupportedLngs: true,
     load: 'currentOnly',
     nsSeparator: false,
     keySeparator: false,
+    returnNull: false,
+    returnEmptyString: false,
     debug: import.meta.env.DEV,
     interpolation: {
       escapeValue: false,

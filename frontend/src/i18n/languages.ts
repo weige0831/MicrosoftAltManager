@@ -31,19 +31,42 @@ export type InterfaceLanguageCode =
   (typeof INTERFACE_LANGUAGE_OPTIONS)[number]['code']
 
 export function normalizeInterfaceLanguage(value?: string | null): string {
-  if (!value) return 'en'
+  if (!value) return 'zhCN'
 
-  let normalized = value.trim().replaceAll('_', '-').toLowerCase()
-  if (value === 'zh-TW' || value === 'zh-HK' || value === 'zh-MO' || value === 'zhTW') {
-    normalized = 'zhTW'
-  }
-  if (value === 'zh-CN' || value === 'zh-Hans' || value === "zhCN") {
-    normalized = 'zhCN'
+  const raw = value.trim()
+  // already project codes
+  if (INTERFACE_LANGUAGE_OPTIONS.some((lang) => lang.code === raw)) {
+    return raw
   }
 
-  return INTERFACE_LANGUAGE_OPTIONS.some((lang) => lang.code === normalized)
-    ? normalized
-    : 'en'
+  const lower = raw.replaceAll('_', '-').toLowerCase()
+  if (
+    lower === 'zh-tw' ||
+    lower === 'zh-hk' ||
+    lower === 'zh-mo' ||
+    lower.startsWith('zh-hant') ||
+    lower === 'zhtw'
+  ) {
+    return 'zhTW'
+  }
+  if (
+    lower === 'zh' ||
+    lower === 'zh-cn' ||
+    lower === 'zh-hans' ||
+    lower === 'zh-sg' ||
+    lower === 'zhcn'
+  ) {
+    return 'zhCN'
+  }
+  if (lower.startsWith('ja')) return 'ja'
+  if (lower.startsWith('fr')) return 'fr'
+  if (lower.startsWith('ru')) return 'ru'
+  if (lower.startsWith('vi')) return 'vi'
+  if (lower.startsWith('en')) return 'en'
+
+  return INTERFACE_LANGUAGE_OPTIONS.some((lang) => lang.code === lower)
+    ? lower
+    : 'zhCN'
 }
 
 /**
@@ -57,17 +80,7 @@ export function normalizeInterfaceLanguage(value?: string | null): string {
  * matching still applies (e.g. `fr-FR` -> `fr`, `ja` -> `ja`).
  */
 export function convertDetectedLanguage(value: string): string {
-  const lower = value.trim().replaceAll('_', '-').toLowerCase()
-  if (!lower.startsWith('zh')) return value
-  if (
-    lower === 'zh-tw' ||
-    lower === 'zh-hk' ||
-    lower === 'zh-mo' ||
-    lower.startsWith('zh-hant')
-  ) {
-    return 'zhTW'
-  }
-  return 'zhCN'
+  return normalizeInterfaceLanguage(value)
 }
 
 /**
