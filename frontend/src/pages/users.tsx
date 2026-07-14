@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Plus, RefreshCw, Trash2 } from "lucide-react";
+import { Plus, RefreshCw, Shield, Trash2 } from "lucide-react";
 import { API, type ManagedUser } from "@/lib/api";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -13,20 +13,14 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import {
-  Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { ROLE } from "@/lib/roles";
+import { ROLE, getRoleLabel, isRoot } from "@/lib/roles";
 import { useAuthStore } from "@/stores/auth-store";
 import { formatTime } from "@/lib/utils";
-
-function roleLabel(role: number, t: (k: string) => string) {
-  if (role >= ROLE.SUPER_ADMIN) return t("Super Admin");
-  if (role >= ROLE.ADMIN) return t("Admin");
-  return t("User");
-}
 
 export default function UsersPage() {
   const { t } = useTranslation();
@@ -98,53 +92,64 @@ export default function UsersPage() {
                     </TableCell>
                   </TableRow>
                 )}
-                {rows.map((u) => (
-                  <TableRow key={u.id}>
-                    <TableCell className="text-muted-foreground">{u.id}</TableCell>
-                    <TableCell className="font-medium">{u.username}</TableCell>
-                    <TableCell>{u.display_name || "-"}</TableCell>
-                    <TableCell>
-                      <Badge variant={u.role >= ROLE.ADMIN ? "info" : "secondary"}>
-                        {roleLabel(u.role, t)}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Switch
-                        checked={u.status === 1}
-                        disabled={me?.id === u.id}
-                        onCheckedChange={async (v) => {
-                          try {
-                            await API.updateUser(u.id, { status: v ? 1 : 0 });
-                            toast.success(t("settings.saved"));
-                            load();
-                          } catch (e) {
-                            toast.error((e as Error).message);
-                          }
-                        }}
-                      />
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">{formatTime(u.created_at)}</TableCell>
-                    <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        disabled={me?.id === u.id}
-                        onClick={async () => {
-                          if (!confirm(t("users.deleteConfirm", { defaultValue: "确定删除该用户？" }))) return;
-                          try {
-                            await API.deleteUser(u.id);
-                            toast.success(t("accounts.deleted"));
-                            load();
-                          } catch (e) {
-                            toast.error((e as Error).message);
-                          }
-                        }}
-                      >
-                        <Trash2 className="size-4 text-destructive" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {rows.map((u) => {
+                  const root = isRoot(u.role);
+                  const self = me?.id === u.id;
+                  return (
+                    <TableRow key={u.id}>
+                      <TableCell className="text-muted-foreground">{u.id}</TableCell>
+                      <TableCell className="font-medium">
+                        <span className="inline-flex items-center gap-1.5">
+                          {root && <Shield className="size-3.5 text-primary" />}
+                          {u.username}
+                        </span>
+                      </TableCell>
+                      <TableCell>{u.display_name || "-"}</TableCell>
+                      <TableCell>
+                        <Badge variant={root ? "info" : u.role >= ROLE.ADMIN ? "secondary" : "outline"}>
+                          {getRoleLabel(u.role)}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Switch
+                          checked={u.status === 1}
+                          disabled={self || root}
+                          title={root ? t("users.rootProtected", { defaultValue: "根用户不可禁用" }) : undefined}
+                          onCheckedChange={async (v) => {
+                            try {
+                              await API.updateUser(u.id, { status: v ? 1 : 0 });
+                              toast.success(t("settings.saved"));
+                              load();
+                            } catch (e) {
+                              toast.error((e as Error).message);
+                            }
+                          }}
+                        />
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">{formatTime(u.created_at)}</TableCell>
+                      <TableCell>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          disabled={self || root}
+                          title={root ? t("users.rootProtected", { defaultValue: "根用户不可删除" }) : undefined}
+                          onClick={async () => {
+                            if (!confirm(t("users.deleteConfirm", { defaultValue: "确定删除该用户？" }))) return;
+                            try {
+                              await API.deleteUser(u.id);
+                              toast.success(t("accounts.deleted"));
+                              load();
+                            } catch (e) {
+                              toast.error((e as Error).message);
+                            }
+                          }}
+                        >
+                          <Trash2 className="size-4 text-destructive" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </div>
@@ -160,7 +165,12 @@ export default function UsersPage() {
             </div>
           )}
         </div>
-        <CreateUserDialog open={open} onOpenChange={setOpen} onDone={load} isSuper={!!me && me.role >= ROLE.SUPER_ADMIN} />
+        <CreateUserDialog
+          open={open}
+          onOpenChange={setOpen}
+          onDone={load}
+          isSuper={!!me && isRoot(me.role)}
+        />
       </SectionPageLayout.Content>
     </SectionPageLayout>
   );
@@ -184,6 +194,10 @@ function CreateUserDialog({
   const submit = async () => {
     if (!username || !password) {
       toast.error(t("login.username"));
+      return;
+    }
+    if (password.length < 6) {
+      toast.error(t("users.passwordMin", { defaultValue: "密码至少 6 位" }));
       return;
     }
     setLoading(true);
@@ -210,6 +224,9 @@ function CreateUserDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{t("users.new", { defaultValue: "新建用户" })}</DialogTitle>
+          <DialogDescription>
+            {t("Set the user's role (cannot be Root)")}
+          </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
           <div className="space-y-1.5">
@@ -229,11 +246,11 @@ function CreateUserDialog({
             <Select value={role} onValueChange={(v) => setRole(String(v))}>
               <SelectTrigger>
                 <SelectValue>
-                  {Number(role) >= ROLE.ADMIN ? t("Admin") : t("User")}
+                  {Number(role) >= ROLE.ADMIN ? t("Admin") : t("Common User", { defaultValue: t("User") })}
                 </SelectValue>
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={String(ROLE.USER)}>{t("User")}</SelectItem>
+                <SelectItem value={String(ROLE.USER)}>{t("Common User", { defaultValue: t("User") })}</SelectItem>
                 {isSuper && <SelectItem value={String(ROLE.ADMIN)}>{t("Admin")}</SelectItem>}
               </SelectContent>
             </Select>

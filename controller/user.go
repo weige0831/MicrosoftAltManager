@@ -158,6 +158,11 @@ func (h *UserHandler) Update(c *gin.Context) {
 		common.Fail(c, http.StatusBadRequest, "参数错误")
 		return
 	}
+	// Root (super admin) cannot be demoted/disabled by non-root; root is protected
+	if u.Role >= model.RoleSuperAdmin && actor.Role < model.RoleSuperAdmin {
+		common.Fail(c, http.StatusForbidden, "无法修改根用户")
+		return
+	}
 	// cannot modify higher-or-equal role user unless super admin targeting lower
 	if actor.Role < model.RoleSuperAdmin && u.Role >= actor.Role && u.ID != actor.ID {
 		common.Fail(c, http.StatusForbidden, "无法修改同级或更高权限用户")
@@ -210,7 +215,20 @@ func (h *UserHandler) Update(c *gin.Context) {
 			common.Fail(c, http.StatusBadRequest, "不能禁用自己")
 			return
 		}
+		if u.Role >= model.RoleSuperAdmin && *req.Status == model.UserStatusDisabled {
+			common.Fail(c, http.StatusBadRequest, "不能禁用根用户")
+			return
+		}
 		updates["status"] = *req.Status
+	}
+	if req.Role != nil && u.Role >= model.RoleSuperAdmin && *req.Role < model.RoleSuperAdmin {
+		// prevent demoting last root
+		var cnt int64
+		h.DB.Model(&model.User{}).Where("role >= ? AND id <> ?", model.RoleSuperAdmin, u.ID).Count(&cnt)
+		if cnt < 1 {
+			common.Fail(c, http.StatusBadRequest, "不能降级唯一根用户")
+			return
+		}
 	}
 	if len(updates) == 0 {
 		common.OK(c, model.PublicUser(&u))
@@ -241,18 +259,13 @@ func (h *UserHandler) Delete(c *gin.Context) {
 		common.Fail(c, http.StatusNotFound, "用户不存在")
 		return
 	}
+	if u.Role >= model.RoleSuperAdmin {
+		common.Fail(c, http.StatusForbidden, "不能删除根用户")
+		return
+	}
 	if actor.Role < model.RoleSuperAdmin && u.Role >= actor.Role {
 		common.Fail(c, http.StatusForbidden, "无法删除同级或更高权限用户")
 		return
-	}
-	// prevent deleting last super admin
-	if u.Role >= model.RoleSuperAdmin {
-		var cnt int64
-		h.DB.Model(&model.User{}).Where("role >= ? AND status = ?", model.RoleSuperAdmin, model.UserStatusEnabled).Count(&cnt)
-		if cnt <= 1 {
-			common.Fail(c, http.StatusBadRequest, "不能删除最后一个超级管理员")
-			return
-		}
 	}
 	if err := h.DB.Delete(&u).Error; err != nil {
 		common.Fail(c, http.StatusInternalServerError, "删除失败")

@@ -12,6 +12,7 @@ import { AuthenticatedLayout } from "@/components/layout/components/authenticate
 import { DirectionProvider } from "@/context/direction-provider";
 import HomePage from "@/pages/home";
 import LoginPage from "@/pages/login";
+import RegisterPage from "@/pages/register";
 import SetupPage from "@/pages/setup";
 import DashboardPage from "@/pages/dashboard";
 import AccountsPage from "@/pages/accounts";
@@ -94,6 +95,7 @@ export default function App() {
           <Route path="/" element={<HomePage />} />
           <Route path="/setup" element={<SetupPage />} />
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
           <Route element={<Protected />}>
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/accounts" element={<AccountsPage />} />
