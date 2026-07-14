@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Building2, KeyRound, Megaphone, Save, Settings2, TimerReset,
 } from "lucide-react";
@@ -13,8 +15,18 @@ import { Switch } from "@/components/ui/switch";
 import { SectionPageLayout } from "@/components/layout/components/section-page-layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn, relativeSeconds } from "@/lib/utils";
+import { mapStatusDataToConfig } from "@/hooks/use-system-config";
+import { useSystemConfigStore } from "@/stores/system-config-store";
+import { getStatus } from "@/lib/api";
 
 type SectionId = "branding" | "notice" | "auth" | "cleanup";
+
+const SECTIONS: SectionId[] = ["branding", "notice", "auth", "cleanup"];
+
+function parseSection(raw: string | null): SectionId {
+  if (raw && (SECTIONS as string[]).includes(raw)) return raw as SectionId;
+  return "branding";
+}
 
 type Category = {
   id: string;
@@ -24,7 +36,15 @@ type Category = {
 
 export default function SettingsPage() {
   const { t } = useTranslation();
-  const [section, setSection] = useState<SectionId>("branding");
+  const [params, setParams] = useSearchParams();
+  const section = parseSection(params.get("section"));
+  const setSection = (id: SectionId) => {
+    setParams(id === "branding" ? {} : { section: id }, { replace: true });
+  };
+
+  const qc = useQueryClient();
+  const setConfig = useSystemConfigStore((s) => s.setConfig);
+
   const [settings, setSettings] = useState<Record<string, string>>({});
   const [ttlExtract, setTtlExtract] = useState("86400");
   const [maxUnused, setMaxUnused] = useState("2592000");
@@ -86,6 +106,20 @@ export default function SettingsPage() {
 
   const markDirty = () => setDirty(true);
 
+  const refreshStatus = async () => {
+    try {
+      const status = await getStatus();
+      if (status) {
+        setConfig(mapStatusDataToConfig(status as any));
+        try {
+          localStorage.setItem("status", JSON.stringify(status));
+        } catch { /* empty */ }
+      }
+      await qc.invalidateQueries({ queryKey: ["status"] });
+      await qc.invalidateQueries({ queryKey: ["notice"] });
+    } catch { /* empty */ }
+  };
+
   const save = async () => {
     setLoading(true);
     try {
@@ -103,6 +137,7 @@ export default function SettingsPage() {
       });
       setSettings(next);
       setDirty(false);
+      await refreshStatus();
       toast.success(t("settings.saved"));
     } catch (e) {
       toast.error((e as Error).message);
@@ -135,7 +170,6 @@ export default function SettingsPage() {
       </SectionPageLayout.Actions>
       <SectionPageLayout.Content>
         <div className="flex h-full min-h-0 flex-col gap-4 lg:flex-row lg:gap-6">
-          {/* left category nav — new-api style */}
           <aside className="w-full shrink-0 lg:w-56">
             <nav className="space-y-4 rounded-xl border bg-card p-3 shadow-xs">
               {categories.map((cat) => (
@@ -169,7 +203,6 @@ export default function SettingsPage() {
             </nav>
           </aside>
 
-          {/* section content */}
           <div className="min-w-0 flex-1 space-y-4 overflow-auto pb-4">
             <div>
               <h3 className="text-base font-semibold tracking-tight">{sectionTitle}</h3>
@@ -190,26 +223,15 @@ export default function SettingsPage() {
                 <CardContent className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-1.5 sm:col-span-2">
                     <Label>{t("settings.siteName")}</Label>
-                    <Input
-                      value={brand}
-                      onChange={(e) => { setBrand(e.target.value); markDirty(); }}
-                    />
+                    <Input value={brand} onChange={(e) => { setBrand(e.target.value); markDirty(); }} />
                   </div>
                   <div className="space-y-1.5 sm:col-span-2">
                     <Label>{t("settings.logoUrl", { defaultValue: "Logo URL" })}</Label>
-                    <Input
-                      value={logo}
-                      onChange={(e) => { setLogo(e.target.value); markDirty(); }}
-                      placeholder="/favicon.svg"
-                    />
+                    <Input value={logo} onChange={(e) => { setLogo(e.target.value); markDirty(); }} placeholder="/favicon.svg" />
                   </div>
                   <div className="space-y-1.5 sm:col-span-2">
                     <Label>{t("settings.footerHtml", { defaultValue: "页脚 HTML" })}</Label>
-                    <Textarea
-                      value={footer}
-                      onChange={(e) => { setFooter(e.target.value); markDirty(); }}
-                      rows={3}
-                    />
+                    <Textarea value={footer} onChange={(e) => { setFooter(e.target.value); markDirty(); }} rows={3} />
                   </div>
                   <div className="rounded-md border p-3 text-xs text-muted-foreground sm:col-span-2">
                     <div className="mb-1 font-medium text-foreground">{t("settings.adminInfo")}</div>
@@ -245,9 +267,7 @@ export default function SettingsPage() {
               <Card>
                 <CardHeader>
                   <CardTitle>{t("Basic Authentication", { defaultValue: "基础认证" })}</CardTitle>
-                  <CardDescription>
-                    {t("settings.authDesc", { defaultValue: "控制登录与注册策略" })}
-                  </CardDescription>
+                  <CardDescription>{t("settings.authDesc", { defaultValue: "控制登录与注册策略" })}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-1">
                   <div className="flex items-center justify-between gap-4 border-b py-3 last:border-0">
@@ -257,10 +277,7 @@ export default function SettingsPage() {
                         {t("Allow users to log in with password", { defaultValue: "允许用户使用用户名密码登录" })}
                       </p>
                     </div>
-                    <Switch
-                      checked={passwordLogin}
-                      onCheckedChange={(v) => { setPasswordLogin(v); markDirty(); }}
-                    />
+                    <Switch checked={passwordLogin} onCheckedChange={(v) => { setPasswordLogin(v); markDirty(); }} />
                   </div>
                   <div className="flex items-center justify-between gap-4 py-3">
                     <div className="min-w-0">
@@ -269,10 +286,7 @@ export default function SettingsPage() {
                         {t("Allow new users to register", { defaultValue: "允许新用户注册（默认普通用户）" })}
                       </p>
                     </div>
-                    <Switch
-                      checked={registerEnabled}
-                      onCheckedChange={(v) => { setRegisterEnabled(v); markDirty(); }}
-                    />
+                    <Switch checked={registerEnabled} onCheckedChange={(v) => { setRegisterEnabled(v); markDirty(); }} />
                   </div>
                   <div className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
                     {t("settings.oauthSoon", {
@@ -287,29 +301,19 @@ export default function SettingsPage() {
               <Card>
                 <CardHeader>
                   <CardTitle>{t("settings.cleanupPolicy")}</CardTitle>
-                  <CardDescription>
-                    {t("settings.cleanupDesc", { defaultValue: "账号自动清理与保留策略" })}
-                  </CardDescription>
+                  <CardDescription>{t("settings.cleanupDesc", { defaultValue: "账号自动清理与保留策略" })}</CardDescription>
                 </CardHeader>
                 <CardContent className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-1.5">
                     <Label>{t("settings.ttlAfterExtract")}</Label>
-                    <Input
-                      type="number"
-                      value={ttlExtract}
-                      onChange={(e) => { setTtlExtract(e.target.value); markDirty(); }}
-                    />
+                    <Input type="number" value={ttlExtract} onChange={(e) => { setTtlExtract(e.target.value); markDirty(); }} />
                     <p className="text-xs text-muted-foreground">
                       {t("settings.ttlAfterExtractHint")} · {relativeSeconds(Number(ttlExtract) || 0)}
                     </p>
                   </div>
                   <div className="space-y-1.5">
                     <Label>{t("settings.maxAgeUnused")}</Label>
-                    <Input
-                      type="number"
-                      value={maxUnused}
-                      onChange={(e) => { setMaxUnused(e.target.value); markDirty(); }}
-                    />
+                    <Input type="number" value={maxUnused} onChange={(e) => { setMaxUnused(e.target.value); markDirty(); }} />
                     <p className="text-xs text-muted-foreground">
                       {t("settings.maxAgeUnusedHint")} · {relativeSeconds(Number(maxUnused) || 0)}
                     </p>

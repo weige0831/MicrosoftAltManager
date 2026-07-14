@@ -59,6 +59,11 @@ func (h *APIKeyHandler) Create(c *gin.Context) {
 		Quota:       req.Quota,
 		Permissions: req.Permissions,
 	}
+	if v, ok := c.Get("user"); ok {
+		if u, ok := v.(*model.User); ok && u != nil {
+			k.CreatedBy = u.ID
+		}
+	}
 	if err := h.DB.Create(&k).Error; err != nil {
 		common.Fail(c, http.StatusInternalServerError, "保存失败")
 		return

@@ -6,7 +6,7 @@ import {
   ArrowRight, Zap, Code, HeartHandshake, Settings, BarChart3, Lock,
   Github, Sun, Moon,
 } from "lucide-react";
-import { API } from "@/lib/api";
+import { API, getStatus } from "@/lib/api";
 import { useAuthStore } from "@/stores/auth-store";
 import { useTheme } from "@/context/theme-provider";
 import { LanguageSwitcher } from "@/components/language-switcher";
@@ -71,10 +71,14 @@ export default function HomePage() {
   const { theme, setTheme } = useTheme();
   const isDark = theme === "dark" || (theme === "system" && typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches);
   const [needsSetup, setNeedsSetup] = useState(false);
+  const [registerEnabled, setRegisterEnabled] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
     API.setupStatus().then((r: any) => setNeedsSetup(r?.needs_setup ?? false)).catch(() => {});
+    getStatus()
+      .then((s) => setRegisterEnabled(!!(s?.register_enabled || s?.password_register_enabled)))
+      .catch(() => {});
   }, []);
 
   // Scroll-triggered header morph
@@ -117,6 +121,11 @@ export default function HomePage() {
                 {isDark ? <Sun className="size-4" /> : <Moon className="size-4" />}
               </button>
               <div className="mx-1 hidden h-4 w-px bg-border/40 sm:block" />
+              {!user && !needsSetup && registerEnabled && (
+                <Button size="sm" variant="ghost" className="h-8 rounded-lg px-3 text-xs font-medium" onClick={() => nav("/register")}>
+                  {t("Sign up")}
+                </Button>
+              )}
               <Button size="sm" className="h-8 rounded-lg px-3.5 text-xs font-medium" onClick={() => nav(primaryTo)}>
                 {primaryLabel}
               </Button>

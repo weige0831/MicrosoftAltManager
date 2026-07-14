@@ -1,12 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
-  BrowserRouter, Routes, Route, Navigate, useLocation,
+  BrowserRouter, Routes, Route, Navigate, useLocation, Outlet,
 } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Loader2 } from "lucide-react";
 import { useAuthStore, type AuthUser } from "@/stores/auth-store";
 import { API, type AuthSelf } from "@/lib/api";
-import { ROLE } from "@/lib/roles";
+import { ROLE, isAdmin } from "@/lib/roles";
 import { Toaster } from "@/components/ui/sonner";
 import { AuthenticatedLayout } from "@/components/layout/components/authenticated-layout";
 import { DirectionProvider } from "@/context/direction-provider";
@@ -76,9 +76,18 @@ function Protected() {
     );
   }
   if (!auth?.user) {
-    return <Navigate to={`/login?redirect=${encodeURIComponent(loc.pathname)}`} replace />;
+    return <Navigate to={`/login?redirect=${encodeURIComponent(loc.pathname + loc.search)}`} replace />;
   }
   return <AuthenticatedLayout />;
+}
+
+/** Admin-only pages: logs / users / settings */
+function AdminOnly({ children }: { children?: ReactNode }) {
+  const user = useAuthStore((s) => s.auth.user);
+  if (!isAdmin(user?.role)) {
+    return <Navigate to="/dashboard" replace />;
+  }
+  return children ? <>{children}</> : <Outlet />;
 }
 
 export default function App() {
@@ -101,10 +110,12 @@ export default function App() {
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/accounts" element={<AccountsPage />} />
             <Route path="/apikeys" element={<ApiKeysPage />} />
-            <Route path="/logs" element={<LogsPage />} />
-            <Route path="/users" element={<UsersPage />} />
-            <Route path="/settings" element={<SettingsPage />} />
             <Route path="/profile" element={<ProfilePage />} />
+            <Route element={<AdminOnly />}>
+              <Route path="/logs" element={<LogsPage />} />
+              <Route path="/users" element={<UsersPage />} />
+              <Route path="/settings" element={<SettingsPage />} />
+            </Route>
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Plus, RefreshCw, Shield, Trash2 } from "lucide-react";
+import { Pencil, Plus, RefreshCw, Shield, Trash2 } from "lucide-react";
 import { API, type ManagedUser } from "@/lib/api";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -30,7 +30,8 @@ export default function UsersPage() {
   const [page, setPage] = useState(1);
   const [keyword, setKeyword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [open, setOpen] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [editUser, setEditUser] = useState<ManagedUser | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -47,6 +48,8 @@ export default function UsersPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  const isSuper = !!me && isRoot(me.role);
+
   return (
     <SectionPageLayout fixedContent>
       <SectionPageLayout.Title>{t("nav.users", { defaultValue: "用户管理" })}</SectionPageLayout.Title>
@@ -54,7 +57,7 @@ export default function UsersPage() {
         <Button variant="outline" size="sm" onClick={load} disabled={loading}>
           <RefreshCw className={loading ? "size-4 animate-spin" : "size-4"} />
         </Button>
-        <Button size="sm" onClick={() => setOpen(true)}>
+        <Button size="sm" onClick={() => setCreateOpen(true)}>
           <Plus className="size-4" />
           {t("users.new", { defaultValue: "新建用户" })}
         </Button>
@@ -81,7 +84,7 @@ export default function UsersPage() {
                   <TableHead>{t("users.role", { defaultValue: "角色" })}</TableHead>
                   <TableHead>{t("users.status", { defaultValue: "状态" })}</TableHead>
                   <TableHead>{t("users.createdAt", { defaultValue: "创建时间" })}</TableHead>
-                  <TableHead className="w-24">{t("accounts.colActions")}</TableHead>
+                  <TableHead className="w-28">{t("accounts.colActions")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -95,6 +98,7 @@ export default function UsersPage() {
                 {rows.map((u) => {
                   const root = isRoot(u.role);
                   const self = me?.id === u.id;
+                  const canEdit = isSuper || (!root && (me?.role ?? 0) > u.role) || self;
                   return (
                     <TableRow key={u.id}>
                       <TableCell className="text-muted-foreground">{u.id}</TableCell>
@@ -128,24 +132,35 @@ export default function UsersPage() {
                       </TableCell>
                       <TableCell className="text-muted-foreground">{formatTime(u.created_at)}</TableCell>
                       <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          disabled={self || root}
-                          title={root ? t("users.rootProtected", { defaultValue: "根用户不可删除" }) : undefined}
-                          onClick={async () => {
-                            if (!confirm(t("users.deleteConfirm", { defaultValue: "确定删除该用户？" }))) return;
-                            try {
-                              await API.deleteUser(u.id);
-                              toast.success(t("accounts.deleted"));
-                              load();
-                            } catch (e) {
-                              toast.error((e as Error).message);
-                            }
-                          }}
-                        >
-                          <Trash2 className="size-4 text-destructive" />
-                        </Button>
+                        <div className="flex gap-0.5">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            disabled={!canEdit}
+                            title={t("action.edit", { defaultValue: "编辑" })}
+                            onClick={() => setEditUser(u)}
+                          >
+                            <Pencil className="size-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            disabled={self || root}
+                            title={root ? t("users.rootProtected", { defaultValue: "根用户不可删除" }) : t("action.delete")}
+                            onClick={async () => {
+                              if (!confirm(t("users.deleteConfirm", { defaultValue: "确定删除该用户？" }))) return;
+                              try {
+                                await API.deleteUser(u.id);
+                                toast.success(t("accounts.deleted"));
+                                load();
+                              } catch (e) {
+                                toast.error((e as Error).message);
+                              }
+                            }}
+                          >
+                            <Trash2 className="size-4 text-destructive" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   );
@@ -165,11 +180,13 @@ export default function UsersPage() {
             </div>
           )}
         </div>
-        <CreateUserDialog
-          open={open}
-          onOpenChange={setOpen}
+        <CreateUserDialog open={createOpen} onOpenChange={setCreateOpen} onDone={load} isSuper={isSuper} />
+        <EditUserDialog
+          user={editUser}
+          onOpenChange={(o) => !o && setEditUser(null)}
           onDone={load}
-          isSuper={!!me && isRoot(me.role)}
+          isSuper={isSuper}
+          isSelf={!!editUser && me?.id === editUser.id}
         />
       </SectionPageLayout.Content>
     </SectionPageLayout>
@@ -224,9 +241,7 @@ function CreateUserDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{t("users.new", { defaultValue: "新建用户" })}</DialogTitle>
-          <DialogDescription>
-            {t("Set the user's role (cannot be Root)")}
-          </DialogDescription>
+          <DialogDescription>{t("Set the user's role (cannot be Root)")}</DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
           <div className="space-y-1.5">
@@ -259,6 +274,130 @@ function CreateUserDialog({
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>{t("action.cancel")}</Button>
           <Button onClick={submit} disabled={loading}>{loading ? t("action.loading") : t("action.create")}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function EditUserDialog({
+  user, onOpenChange, onDone, isSuper, isSelf,
+}: {
+  user: ManagedUser | null;
+  onOpenChange: (o: boolean) => void;
+  onDone: () => void;
+  isSuper: boolean;
+  isSelf: boolean;
+}) {
+  const { t } = useTranslation();
+  const [displayName, setDisplayName] = useState("");
+  const [email, setEmail] = useState("");
+  const [role, setRole] = useState(String(ROLE.USER));
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (user) {
+      setDisplayName(user.display_name || user.username);
+      setEmail(user.email || "");
+      setRole(String(user.role >= ROLE.ADMIN && user.role < ROLE.SUPER_ADMIN ? ROLE.ADMIN : ROLE.USER));
+      setPassword("");
+    }
+  }, [user]);
+
+  if (!user) return null;
+  const root = isRoot(user.role);
+  // when editing self who is root, keep role display as root but don't allow change
+  const canChangeRole = isSuper && !root && !isSelf;
+
+  const submit = async () => {
+    setLoading(true);
+    try {
+      const body: Record<string, unknown> = {
+        display_name: displayName,
+        email,
+      };
+      if (canChangeRole) {
+        body.role = Number(role);
+      }
+      if (password) {
+        if (password.length < 6) {
+          toast.error(t("users.passwordMin", { defaultValue: "密码至少 6 位" }));
+          setLoading(false);
+          return;
+        }
+        body.password = password;
+      }
+      await API.updateUser(user.id, body);
+      toast.success(t("settings.saved"));
+      onOpenChange(false);
+      onDone();
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Dialog open={!!user} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{t("users.edit", { defaultValue: "编辑用户" })} · {user.username}</DialogTitle>
+          <DialogDescription>
+            {root
+              ? t("users.editRootHint", { defaultValue: "根用户仅可修改显示名与邮箱" })
+              : t("users.editHint", { defaultValue: "修改资料、角色或重置密码" })}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <Label>{t("login.username")}</Label>
+            <Input value={user.username} disabled />
+          </div>
+          <div className="space-y-1.5">
+            <Label>{t("users.displayName", { defaultValue: "显示名" })}</Label>
+            <Input value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
+          </div>
+          <div className="space-y-1.5">
+            <Label>{t("users.email", { defaultValue: "邮箱" })}</Label>
+            <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+          </div>
+          <div className="space-y-1.5">
+            <Label>{t("users.role", { defaultValue: "角色" })}</Label>
+            {root ? (
+              <Input value={getRoleLabel(user.role)} disabled />
+            ) : (
+              <Select
+                value={role}
+                onValueChange={(v) => setRole(String(v))}
+                disabled={!canChangeRole}
+              >
+                <SelectTrigger>
+                  <SelectValue>
+                    {Number(role) >= ROLE.ADMIN ? t("Admin") : t("Common User", { defaultValue: t("User") })}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={String(ROLE.USER)}>{t("Common User", { defaultValue: t("User") })}</SelectItem>
+                  {isSuper && <SelectItem value={String(ROLE.ADMIN)}>{t("Admin")}</SelectItem>}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
+          <div className="space-y-1.5">
+            <Label>{t("users.resetPassword", { defaultValue: "重置密码（可选）" })}</Label>
+            <Input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder={t("users.resetPasswordHint", { defaultValue: "留空则不修改" })}
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>{t("action.cancel")}</Button>
+          <Button onClick={submit} disabled={loading}>{loading ? t("action.loading") : t("action.save")}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

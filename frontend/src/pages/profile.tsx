@@ -230,13 +230,25 @@ export default function ProfilePage() {
                   <Select value={lang} onValueChange={(v) => changeLang(String(v))}>
                     <SelectTrigger className="w-full">
                       <SelectValue>
-                        {lang === "en" ? "English" : lang === "zhTW" ? "繁體中文" : "简体中文"}
+                        {{
+                          zhCN: "简体中文",
+                          zhTW: "繁體中文",
+                          en: "English",
+                          ja: "日本語",
+                          fr: "Français",
+                          ru: "Русский",
+                          vi: "Tiếng Việt",
+                        }[lang] || lang}
                       </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="zhCN">简体中文</SelectItem>
                       <SelectItem value="zhTW">繁體中文</SelectItem>
                       <SelectItem value="en">English</SelectItem>
+                      <SelectItem value="ja">日本語</SelectItem>
+                      <SelectItem value="fr">Français</SelectItem>
+                      <SelectItem value="ru">Русский</SelectItem>
+                      <SelectItem value="vi">Tiếng Việt</SelectItem>
                     </SelectContent>
                   </Select>
                 </CardContent>
