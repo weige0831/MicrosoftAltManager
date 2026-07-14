@@ -19,6 +19,7 @@ import AccountsPage from "@/pages/accounts";
 import ApiKeysPage from "@/pages/apikeys";
 import LogsPage from "@/pages/logs";
 import SettingsPage from "@/pages/settings";
+import ProfilePage from "@/pages/profile";
 import UsersPage from "@/pages/users";
 
 function toAuthUser(u: AuthSelf | null): AuthUser | null {
@@ -103,6 +104,7 @@ export default function App() {
             <Route path="/logs" element={<LogsPage />} />
             <Route path="/users" element={<UsersPage />} />
             <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/profile" element={<ProfilePage />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

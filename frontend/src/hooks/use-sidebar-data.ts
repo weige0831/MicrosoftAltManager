@@ -6,6 +6,7 @@ import {
   LayoutDashboard,
   ScrollText,
   Settings,
+  User,
   Users,
   UserCog,
 } from 'lucide-react'
@@ -35,6 +36,11 @@ export function useSidebarData(): SidebarData {
       title: t('nav.apiKeys'),
       url: '/apikeys',
       icon: KeyRound,
+    },
+    {
+      title: t('Profile'),
+      url: '/profile',
+      icon: User,
     },
   ]
 
