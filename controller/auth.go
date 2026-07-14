@@ -57,7 +57,10 @@ func (h *AuthHandler) Self(c *gin.Context) {
 
 // Register POST /api/user/register
 func (h *AuthHandler) Register(c *gin.Context) {
-	if h.Settings == nil || !h.Settings.GetBool("register_enabled", false) {
+	// require both switches (UI toggles them together; either off blocks register)
+	if h.Settings == nil ||
+		!h.Settings.GetBool("register_enabled", false) ||
+		!h.Settings.GetBool("password_register_enabled", false) {
 		common.Fail(c, http.StatusForbidden, "注册已关闭")
 		return
 	}

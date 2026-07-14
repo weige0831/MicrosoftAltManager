@@ -2,6 +2,7 @@ package router
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -26,10 +27,15 @@ func NewRouter(d Deps) *gin.Engine {
 	r.Use(gin.Recovery())
 	r.Use(middleware.Logger())
 	r.Use(cors.New(cors.Config{
-		AllowOriginFunc:  func(string) bool { return true },
+		// Same-origin SPA + cookie auth: reflect only the request Origin when present.
+		// Empty Origin (non-browser / same-origin) is allowed without credentials leakage.
+		AllowOriginFunc: func(origin string) bool {
+			return origin != ""
+		},
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
 		AllowCredentials: true,
+		MaxAge:           12 * 3600,
 	}))
 
 	setupH := &controller.SetupHandler{DB: d.DB}
@@ -39,6 +45,8 @@ func NewRouter(d Deps) *gin.Engine {
 	setH := &controller.SettingsHandler{DB: d.DB, Settings: d.Settings}
 	logH := &controller.LogsHandler{DB: d.DB}
 	userH := &controller.UserHandler{DB: d.DB, Auth: d.Auth}
+	authLimit := middleware.NewRateLimiter(20, time.Minute)
+	setupLimit := middleware.NewRateLimiter(5, time.Minute)
 
 	isAPIPath := func(p string) bool {
 		return p == "/api" || len(p) >= 5 && p[:5] == "/api/"
@@ -85,12 +93,12 @@ func NewRouter(d Deps) *gin.Engine {
 		})
 		api.GET("/settings", setH.Public)
 		api.GET("/setup/status", setupH.Status)
-		api.POST("/setup", setupH.Create)
+		api.POST("/setup", setupLimit.Middleware(), setupH.Create)
 
 		// auth
-		api.POST("/auth/login", authH.Login)
-		api.POST("/user/login", authH.Login)
-		api.POST("/user/register", authH.Register)
+		api.POST("/auth/login", authLimit.Middleware(), authH.Login)
+		api.POST("/user/login", authLimit.Middleware(), authH.Login)
+		api.POST("/user/register", authLimit.Middleware(), authH.Register)
 		api.POST("/auth/logout", d.Auth.RequireSession(), authH.Logout)
 		api.POST("/user/logout", d.Auth.RequireSession(), authH.Logout)
 		api.GET("/user/self", d.Auth.RequireSession(), authH.Self)

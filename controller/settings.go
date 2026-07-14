@@ -39,6 +39,10 @@ func (h *SettingsHandler) Update(c *gin.Context) {
 		if !service.EditableKeys[k] {
 			continue
 		}
+		// strip dangerous HTML from free-text fields rendered in the SPA
+		if k == "footer_html" || k == "notice" || k == "brand_name" || k == "system_name" {
+			v = common.SanitizeHTML(v)
+		}
 		if err := h.Settings.Set(k, v); err != nil {
 			common.Fail(c, http.StatusInternalServerError, "保存失败")
 			return

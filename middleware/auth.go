@@ -129,13 +129,23 @@ func (s *Service) RequireRole(minRole int) gin.HandlerFunc {
 }
 
 // VerifyApiKey resolves an API key from the Authorization header.
+// Uses key_prefix to narrow candidates before bcrypt compare (avoids O(n) full-scan).
 func (s *Service) VerifyApiKey(c *gin.Context, wantPerm string) (*model.ApiKey, string) {
 	raw := extractBearer(c)
 	if raw == "" {
 		return nil, ""
 	}
+	// msm_ + 10-char prefix is stored on create
+	prefix := raw
+	if len(prefix) > 10 {
+		prefix = prefix[:10]
+	}
 	var keys []model.ApiKey
-	s.db.Where("enabled = ?", true).Find(&keys)
+	q := s.db.Where("enabled = ?", true)
+	if len(raw) >= 10 {
+		q = q.Where("key_prefix = ?", prefix)
+	}
+	q.Find(&keys)
 	for i := range keys {
 		if bcrypt.CompareHashAndPassword([]byte(keys[i].KeyHash), []byte(raw)) == nil {
 			if !hasPerm(keys[i].Permissions, wantPerm) {

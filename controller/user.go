@@ -83,22 +83,14 @@ func (h *UserHandler) Create(c *gin.Context) {
 	if role == 0 {
 		role = model.RoleUser
 	}
-	if role != model.RoleUser && role != model.RoleAdmin && role != model.RoleSuperAdmin {
-		common.Fail(c, http.StatusBadRequest, "无效角色")
+	// Root cannot be created via API — only setup creates the first super admin.
+	if role != model.RoleUser && role != model.RoleAdmin {
+		common.Fail(c, http.StatusBadRequest, "无效角色（不可创建 Root）")
 		return
 	}
-	// only super admin can create admin/super admin
+	// only super admin can create admin
 	if role >= model.RoleAdmin && (actor == nil || actor.Role < model.RoleSuperAdmin) {
 		common.Fail(c, http.StatusForbidden, "仅超级管理员可创建管理员")
-		return
-	}
-	if role >= model.RoleSuperAdmin && (actor == nil || actor.Role < model.RoleSuperAdmin) {
-		common.Fail(c, http.StatusForbidden, "无法创建超级管理员")
-		return
-	}
-	// non-super cannot create super
-	if role == model.RoleSuperAdmin && actor.Role < model.RoleSuperAdmin {
-		common.Fail(c, http.StatusForbidden, "无法创建超级管理员")
 		return
 	}
 
@@ -192,8 +184,9 @@ func (h *UserHandler) Update(c *gin.Context) {
 	}
 	if req.Role != nil {
 		role := *req.Role
-		if role != model.RoleUser && role != model.RoleAdmin && role != model.RoleSuperAdmin {
-			common.Fail(c, http.StatusBadRequest, "无效角色")
+		// never promote anyone to Root via update
+		if role != model.RoleUser && role != model.RoleAdmin {
+			common.Fail(c, http.StatusBadRequest, "无效角色（不可设为 Root）")
 			return
 		}
 		if role >= model.RoleAdmin && actor.Role < model.RoleSuperAdmin {
@@ -202,6 +195,10 @@ func (h *UserHandler) Update(c *gin.Context) {
 		}
 		if u.ID == actor.ID && role < actor.Role {
 			common.Fail(c, http.StatusBadRequest, "不能降低自己的角色")
+			return
+		}
+		if u.Role >= model.RoleSuperAdmin {
+			common.Fail(c, http.StatusForbidden, "不能修改根用户角色")
 			return
 		}
 		updates["role"] = role
