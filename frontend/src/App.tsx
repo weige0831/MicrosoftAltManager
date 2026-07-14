@@ -8,6 +8,7 @@ import { useAuthStore, type AuthUser } from "@/stores/auth-store";
 import { API, type AuthSelf } from "@/lib/api";
 import { ROLE, isAdmin } from "@/lib/roles";
 import { Toaster } from "@/components/ui/sonner";
+import { NavigationProgress } from "@/components/navigation-progress";
 import { AuthenticatedLayout } from "@/components/layout/components/authenticated-layout";
 import { DirectionProvider } from "@/context/direction-provider";
 import HomePage from "@/pages/home";
@@ -100,7 +101,8 @@ export default function App() {
   return (
     <DirectionProvider>
       <BrowserRouter>
-        <Toaster />
+        <NavigationProgress />
+        <Toaster closeButton duration={5000} position="top-center" richColors />
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/setup" element={<SetupPage />} />
