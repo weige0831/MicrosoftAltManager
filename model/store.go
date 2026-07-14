@@ -45,7 +45,9 @@ func Open(cfg *common.Config) (*gorm.DB, error) {
 
 	if cfg.AutoMigrate {
 		// Convert legacy string role column before AutoMigrate when possible.
-		migrateRoleColumn(db, cfg.UseSqlite)
+		if err := migrateRoleColumn(db, cfg.UseSqlite); err != nil {
+			log.Printf("[store] role column migrate warning: %v", err)
+		}
 
 		if err := db.AutoMigrate(
 			&Account{}, &ApiKey{}, &User{},
@@ -63,41 +65,59 @@ func Open(cfg *common.Config) (*gorm.DB, error) {
 	return db, nil
 }
 
-func migrateRoleColumn(db *gorm.DB, sqlite bool) {
+func migrateRoleColumn(db *gorm.DB, sqlite bool) error {
 	if sqlite {
-		// SQLite type affinity is loose; AutoMigrate is enough.
-		return
+		return nil
 	}
-	// PostgreSQL: if role is still text/varchar, convert to int with mapping.
 	var dataType string
 	err := db.Raw(`
 		SELECT data_type FROM information_schema.columns
-		WHERE table_name = 'users' AND column_name = 'role'
+		WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'role'
 	`).Scan(&dataType).Error
 	if err != nil || dataType == "" {
-		return
+		return err
 	}
 	if dataType == "integer" || dataType == "bigint" || dataType == "smallint" {
-		return
+		// still ensure new columns exist
+		return ensureExtraUserColumns(db)
 	}
 	log.Printf("[store] converting users.role from %s to integer", dataType)
-	_ = db.Exec(`
+
+	// Drop default first — PG cannot cast default expression with type change.
+	if err := db.Exec(`ALTER TABLE users ALTER COLUMN role DROP DEFAULT`).Error; err != nil {
+		return err
+	}
+	if err := db.Exec(`
 		ALTER TABLE users
 		ALTER COLUMN role TYPE integer
 		USING CASE
 			WHEN lower(role::text) IN ('admin','root','super','super_admin','100') THEN 100
 			WHEN lower(role::text) IN ('administrator','mod','10') THEN 10
-			WHEN role ~ '^[0-9]+$' THEN role::integer
+			WHEN role::text ~ '^[0-9]+$' THEN role::text::integer
 			ELSE 1
 		END
-	`).Error
-	// ensure status column exists as int
-	_ = db.Exec(`
-		ALTER TABLE users ADD COLUMN IF NOT EXISTS display_name varchar(128) DEFAULT '';
-		ALTER TABLE users ADD COLUMN IF NOT EXISTS email varchar(255) DEFAULT '';
-		ALTER TABLE users ADD COLUMN IF NOT EXISTS status integer DEFAULT 1;
-		ALTER TABLE users ADD COLUMN IF NOT EXISTS remark varchar(255) DEFAULT '';
-	`).Error
+	`).Error; err != nil {
+		return err
+	}
+	if err := db.Exec(`ALTER TABLE users ALTER COLUMN role SET DEFAULT 1`).Error; err != nil {
+		return err
+	}
+	return ensureExtraUserColumns(db)
+}
+
+func ensureExtraUserColumns(db *gorm.DB) error {
+	stmts := []string{
+		`ALTER TABLE users ADD COLUMN IF NOT EXISTS display_name varchar(128) DEFAULT ''`,
+		`ALTER TABLE users ADD COLUMN IF NOT EXISTS email varchar(255) DEFAULT ''`,
+		`ALTER TABLE users ADD COLUMN IF NOT EXISTS status integer DEFAULT 1`,
+		`ALTER TABLE users ADD COLUMN IF NOT EXISTS remark varchar(255) DEFAULT ''`,
+	}
+	for _, s := range stmts {
+		if err := db.Exec(s).Error; err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func defaultSettings() map[string]string {
