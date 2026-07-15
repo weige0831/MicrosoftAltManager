@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Pencil, Plus, RefreshCw, Shield, Trash2 } from "lucide-react";
+import { Pencil, Plus, RefreshCw, Shield, Trash2, UserCog } from "lucide-react";
 import { API, type ManagedUser } from "@/lib/api";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
+import { EmptyState } from "@/components/empty-state";
+import { ConfirmDeleteDialog } from "@/components/console/confirm-delete-dialog";
 import { SectionPageLayout } from "@/components/layout/components/section-page-layout";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -29,14 +31,25 @@ export default function UsersPage() {
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [keyword, setKeyword] = useState("");
+  const [keywordQuery, setKeywordQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [editUser, setEditUser] = useState<ManagedUser | null>(null);
+  const [deleteUser, setDeleteUser] = useState<ManagedUser | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setKeywordQuery(keyword.trim());
+      setPage(1);
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [keyword]);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const r = await API.users({ page, page_size: 20, keyword: keyword || undefined });
+      const r = await API.users({ page, page_size: 20, keyword: keywordQuery || undefined });
       setRows(r.items || []);
       setTotal(r.total);
     } catch (e) {
@@ -44,7 +57,7 @@ export default function UsersPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, keyword]);
+  }, [page, keywordQuery]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -70,103 +83,101 @@ export default function UsersPage() {
               placeholder={t("users.search", { defaultValue: "搜索用户名/邮箱" })}
               value={keyword}
               onChange={(e) => setKeyword(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && setPage(1)}
             />
             <span className="text-xs text-muted-foreground">{t("accounts.total", { n: total })}</span>
           </div>
           <div className="min-h-0 flex-1 overflow-auto rounded-xl border bg-card shadow-xs">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-16">ID</TableHead>
-                  <TableHead>{t("login.username")}</TableHead>
-                  <TableHead>{t("users.displayName", { defaultValue: "显示名" })}</TableHead>
-                  <TableHead>{t("users.role", { defaultValue: "角色" })}</TableHead>
-                  <TableHead>{t("users.status", { defaultValue: "状态" })}</TableHead>
-                  <TableHead>{t("users.createdAt", { defaultValue: "创建时间" })}</TableHead>
-                  <TableHead className="w-28">{t("accounts.colActions")}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rows.length === 0 && (
+            {rows.length === 0 ? (
+              <EmptyState
+                icon={UserCog}
+                title={t("users.noData", { defaultValue: "暂无用户" })}
+                description={t("users.emptyDesc", { defaultValue: "创建用户后可分配角色并管理状态" })}
+                action={
+                  <Button size="sm" onClick={() => setCreateOpen(true)}>
+                    <Plus className="size-4" />
+                    {t("users.new", { defaultValue: "新建用户" })}
+                  </Button>
+                }
+                className="min-h-[280px] border-0"
+              />
+            ) : (
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={7} className="py-12 text-center text-muted-foreground">
-                      {t("users.noData", { defaultValue: "暂无用户" })}
-                    </TableCell>
+                    <TableHead className="w-16">ID</TableHead>
+                    <TableHead>{t("login.username")}</TableHead>
+                    <TableHead>{t("users.displayName", { defaultValue: "显示名" })}</TableHead>
+                    <TableHead>{t("users.role", { defaultValue: "角色" })}</TableHead>
+                    <TableHead>{t("users.status", { defaultValue: "状态" })}</TableHead>
+                    <TableHead>{t("users.createdAt", { defaultValue: "创建时间" })}</TableHead>
+                    <TableHead className="w-28">{t("accounts.colActions")}</TableHead>
                   </TableRow>
-                )}
-                {rows.map((u) => {
-                  const root = isRoot(u.role);
-                  const self = me?.id === u.id;
-                  const canEdit = isSuper || (!root && (me?.role ?? 0) > u.role) || self;
-                  return (
-                    <TableRow key={u.id}>
-                      <TableCell className="text-muted-foreground">{u.id}</TableCell>
-                      <TableCell className="font-medium">
-                        <span className="inline-flex items-center gap-1.5">
-                          {root && <Shield className="size-3.5 text-primary" />}
-                          {u.username}
-                        </span>
-                      </TableCell>
-                      <TableCell>{u.display_name || "-"}</TableCell>
-                      <TableCell>
-                        <Badge variant={root ? "info" : u.role >= ROLE.ADMIN ? "secondary" : "outline"}>
-                          {getRoleLabel(u.role)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Switch
-                          checked={u.status === 1}
-                          disabled={self || root}
-                          title={root ? t("users.rootProtected", { defaultValue: "根用户不可禁用" }) : undefined}
-                          onCheckedChange={async (v) => {
-                            try {
-                              await API.updateUser(u.id, { status: v ? 1 : 0 });
-                              toast.success(t("settings.saved"));
-                              load();
-                            } catch (e) {
-                              toast.error((e as Error).message);
-                            }
-                          }}
-                        />
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">{formatTime(u.created_at)}</TableCell>
-                      <TableCell>
-                        <div className="flex gap-0.5">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            disabled={!canEdit}
-                            title={t("action.edit", { defaultValue: "编辑" })}
-                            onClick={() => setEditUser(u)}
-                          >
-                            <Pencil className="size-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
+                </TableHeader>
+                <TableBody>
+                  {rows.map((u) => {
+                    const root = isRoot(u.role);
+                    const self = me?.id === u.id;
+                    const canEdit = isSuper || (!root && (me?.role ?? 0) > u.role) || self;
+                    return (
+                      <TableRow key={u.id}>
+                        <TableCell className="text-muted-foreground">{u.id}</TableCell>
+                        <TableCell className="font-medium">
+                          <span className="inline-flex items-center gap-1.5">
+                            {root && <Shield className="size-3.5 text-primary" />}
+                            {u.username}
+                          </span>
+                        </TableCell>
+                        <TableCell>{u.display_name || "-"}</TableCell>
+                        <TableCell>
+                          <Badge variant={root ? "info" : u.role >= ROLE.ADMIN ? "secondary" : "outline"}>
+                            {getRoleLabel(u.role)}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Switch
+                            checked={u.status === 1}
                             disabled={self || root}
-                            title={root ? t("users.rootProtected", { defaultValue: "根用户不可删除" }) : t("action.delete")}
-                            onClick={async () => {
-                              if (!confirm(t("users.deleteConfirm", { defaultValue: "确定删除该用户？" }))) return;
+                            title={root ? t("users.rootProtected", { defaultValue: "根用户不可禁用" }) : undefined}
+                            onCheckedChange={async (v) => {
                               try {
-                                await API.deleteUser(u.id);
-                                toast.success(t("accounts.deleted"));
+                                await API.updateUser(u.id, { status: v ? 1 : 0 });
+                                toast.success(t("settings.saved"));
                                 load();
                               } catch (e) {
                                 toast.error((e as Error).message);
                               }
                             }}
-                          >
-                            <Trash2 className="size-4 text-destructive" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+                          />
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">{formatTime(u.created_at)}</TableCell>
+                        <TableCell>
+                          <div className="flex gap-0.5">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              disabled={!canEdit}
+                              title={t("action.edit", { defaultValue: "编辑" })}
+                              onClick={() => setEditUser(u)}
+                            >
+                              <Pencil className="size-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              disabled={self || root}
+                              title={root ? t("users.rootProtected", { defaultValue: "根用户不可删除" }) : t("action.delete")}
+                              onClick={() => setDeleteUser(u)}
+                            >
+                              <Trash2 className="size-4 text-destructive" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            )}
           </div>
           {total > 20 && (
             <div className="flex shrink-0 items-center justify-center gap-2">
@@ -187,6 +198,34 @@ export default function UsersPage() {
           onDone={load}
           isSuper={isSuper}
           isSelf={!!editUser && me?.id === editUser.id}
+        />
+        <ConfirmDeleteDialog
+          open={!!deleteUser}
+          onOpenChange={(o) => !o && setDeleteUser(null)}
+          title={t("users.deleteConfirm", { defaultValue: "确定删除该用户？" })}
+          description={
+            deleteUser
+              ? t("users.deleteDesc", {
+                  defaultValue: "将删除用户 {{name}}，此操作不可撤销。",
+                  name: deleteUser.username,
+                })
+              : undefined
+          }
+          loading={deleting}
+          onConfirm={async () => {
+            if (!deleteUser) return;
+            setDeleting(true);
+            try {
+              await API.deleteUser(deleteUser.id);
+              toast.success(t("accounts.deleted"));
+              setDeleteUser(null);
+              load();
+            } catch (e) {
+              toast.error((e as Error).message);
+            } finally {
+              setDeleting(false);
+            }
+          }}
         />
       </SectionPageLayout.Content>
     </SectionPageLayout>
